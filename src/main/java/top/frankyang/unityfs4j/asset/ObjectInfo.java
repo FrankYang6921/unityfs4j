@@ -101,9 +101,7 @@ public class ObjectInfo implements ObjectHolder {
 
     protected Object readObject() throws IOException {
         payload.seek(asset.getOffset() + offset);
-        val buf = RandomAccess.of(IOUtils.readFully(payload.asInputStream(), size));
-        buf.setBigEndian(payload.isBigEndian());
-        return readValue(getTypeTree(), buf);
+        return readValue(getTypeTree(), payload);
     }
 
     protected Object readValue(TypeTree typeTree, RandomAccess buf) throws IOException {

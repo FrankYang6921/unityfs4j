@@ -7,16 +7,12 @@ import java.nio.file.Path;
 
 @UtilityClass
 public class StringUtils {
-    public String getName(Path path) {
-        val name = path.getFileName().toString();
-        val index = name.indexOf('.');
-        return index > 0 ? name.substring(0, index) : name;
+    public String getFileName(Path path) {
+        return truncateTo(path.getFileName().toString(), '.');
     }
 
-    public String repeat(String string, int count) {
-        if (count == 0) return "";
-        val sb = new StringBuilder(string.length() * count);
-        for (int i = 0; i < count; i++) sb.append(string);
-        return sb.toString();
+    public String truncateTo(String string, char c) {
+        val index = string.indexOf(c);
+        return index > 0 ? string.substring(0, index) : string;
     }
 }

@@ -7,7 +7,6 @@ import top.frankyang.unityfs4j.UnityFsPayload;
 import top.frankyang.unityfs4j.UnityFsRoot;
 import top.frankyang.unityfs4j.UnityFsStream;
 import top.frankyang.unityfs4j.io.RandomAccess;
-import top.frankyang.unityfs4j.util.DataInputUtils;
 import top.frankyang.unityfs4j.util.Pair;
 
 import java.io.File;
@@ -20,7 +19,7 @@ import java.nio.file.Path;
 import java.util.*;
 
 @Getter
-public class Asset implements AssetResolvable {
+public class Asset implements AssetResolvable, Iterable<ObjectInfo> {
     private final RandomAccess payload;
 
     private final UnityFsStream stream;
@@ -129,7 +128,7 @@ public class Asset implements AssetResolvable {
             }
         }
 
-        if (!DataInputUtils.readNullEndingString(payload).isEmpty()) {  // DK
+        if (!payload.readString().isEmpty()) {  // DK
             throw new IOException();
         }
 
@@ -175,5 +174,10 @@ public class Asset implements AssetResolvable {
     @Override
     public Asset resolve() {
         return this;
+    }
+
+    @Override
+    public Iterator<ObjectInfo> iterator() {
+        return objects.values().iterator();
     }
 }

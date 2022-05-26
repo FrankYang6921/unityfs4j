@@ -2,24 +2,24 @@ package top.frankyang.unityfs4j;
 
 import lombok.Getter;
 import lombok.val;
-import org.apache.commons.compress.compressors.CompressorException;
 import top.frankyang.unityfs4j.UnityFsMetadata.BlockMetadata;
 import top.frankyang.unityfs4j.UnityFsMetadata.NodeMetadata;
 import top.frankyang.unityfs4j.asset.Asset;
 import top.frankyang.unityfs4j.io.AbstractRandomAccess;
 import top.frankyang.unityfs4j.io.RandomAccess;
 import top.frankyang.unityfs4j.io.Whence;
+import top.frankyang.unityfs4j.util.Cache;
 import top.frankyang.unityfs4j.util.CompressionUtils;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 @Getter
 public class UnityFsPayload extends AbstractRandomAccess implements Iterable<Asset> {
-    private final Map<NodeMetadata, Asset> assetCache = new HashMap<>();
+    private final Cache<NodeMetadata, Asset> assetCache = new Cache<>();
+
+    private final Cache<BlockMetadata, byte[]> blockCache = new Cache<>();
 
     private final UnityFsStream stream;
 
@@ -31,7 +31,7 @@ public class UnityFsPayload extends AbstractRandomAccess implements Iterable<Ass
 
     private final long maxOffset;
 
-    private long pointer;
+    protected long pointer;
 
     protected BlockMetadata currentBlock;
 
@@ -101,12 +101,14 @@ public class UnityFsPayload extends AbstractRandomAccess implements Iterable<Ass
         stream.seek(this.baseOffset + baseOffset);
         byte[] bytes;
         try {
-            bytes = CompressionUtils.decompress(
-                stream.asInputStream(),
-                currentBlock.getUncompressedSize(),
-                currentBlock.getCompressionType()
+            bytes = blockCache.computeIfAbsent(currentBlock, () ->
+                CompressionUtils.decompress(
+                    stream.asInputStream(),
+                    currentBlock.getUncompressedSize(),
+                    currentBlock.getCompressionType()
+                )
             );
-        } catch (CompressorException e) {
+        } catch (Exception e) {
             throw new IOException(e);
         }
         currentStream = RandomAccess.of(bytes);
@@ -139,7 +141,7 @@ public class UnityFsPayload extends AbstractRandomAccess implements Iterable<Ass
     }
 
     @Override
-    public AssetIterator iterator() {
+    public Iterator<Asset> iterator() {
         return new AssetIterator();
     }
 
@@ -148,7 +150,7 @@ public class UnityFsPayload extends AbstractRandomAccess implements Iterable<Ass
         stream.close();
     }
 
-    public class AssetIterator implements Iterator<Asset> {
+    protected class AssetIterator implements Iterator<Asset> {
         final Iterator<NodeMetadata> itr = metadata.getNodeMetadataList().iterator();
 
         @Override
@@ -158,9 +160,7 @@ public class UnityFsPayload extends AbstractRandomAccess implements Iterable<Ass
 
         @Override
         public Asset next() {
-            return assetCache.computeIfAbsent(itr.next(), node ->
-                new Asset(UnityFsPayload.this, node)
-            );
+            return assetCache.computeIfAbsent(itr.next(), node -> new Asset(UnityFsPayload.this, node));
         }
     }
 }

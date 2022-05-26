@@ -5,7 +5,6 @@ import lombok.val;
 import lombok.var;
 import org.apache.commons.io.IOUtils;
 import top.frankyang.unityfs4j.io.RandomAccess;
-import top.frankyang.unityfs4j.util.DataInputUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,7 +37,7 @@ public class TypeMetadata {
     }
 
     protected void load(RandomAccess payload, int format) throws IOException {
-        engineVersion = DataInputUtils.readNullEndingString(payload);
+        engineVersion = payload.readString();
         payload.readInt();  // Platform ID, unnecessary
 
         if (format >= 13) {

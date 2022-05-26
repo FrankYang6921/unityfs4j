@@ -12,15 +12,15 @@ class UnityFsTest {
     @Test
     void test() throws IOException {
         @Cleanup val root = new UnityFsRoot(Paths.get("D:/Miscellaneous/Android"));
-        val stream = root.loadStream(Paths.get("charpack/char_017_huang.ab"));
-        val a = System.currentTimeMillis();
+        val stream = root.loadStream(Paths.get("audio/sound_beta_2/general.ab"));
+        val a = System.nanoTime();
         for (Asset asset : stream.getPayload()) {
             asset.load();
-            for (val object : asset.getObjects().values()) {
+            for (val object : asset) {
                 object.getObject();
             }
         }
-        val b = System.currentTimeMillis();
-        System.out.println((b - a) / 1e3);
+        val b = System.nanoTime();
+        System.out.println((b - a) / 1e9);
     }
 }

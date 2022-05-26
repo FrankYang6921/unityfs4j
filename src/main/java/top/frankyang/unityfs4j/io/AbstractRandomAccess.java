@@ -45,6 +45,10 @@ public abstract class AbstractRandomAccess implements RandomAccess {
         return in;
     }
 
+    @Override
+    public void close() throws IOException {
+    }
+
     protected class Input extends InputStream {
         protected long mark = -1;
 

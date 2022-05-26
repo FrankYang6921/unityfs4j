@@ -60,7 +60,7 @@ public class UnityFsRoot implements Closeable {
             for (var itr = stream.iterator(); itr.hasNext(); ) {
                 val child = itr.next();
                 if (Files.isDirectory(child)) continue;
-                val filename = StringUtils.getName(child);
+                val filename = StringUtils.getFileName(child);
                 if (name.equals("cab-" + filename.toLowerCase())) {
                     return loadStream(child);
                 }
