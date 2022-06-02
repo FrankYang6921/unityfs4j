@@ -2,6 +2,7 @@ package top.frankyang.unityfs4j.engine;
 
 import lombok.val;
 import net.sf.cglib.proxy.*;
+import top.frankyang.unityfs4j.asset.ObjectInfo;
 import top.frankyang.unityfs4j.asset.TypeTree;
 
 import java.lang.reflect.Method;
@@ -31,18 +32,20 @@ class Interceptor implements MethodInterceptor, CallbackFilter {
         }
     }
 
-    public UnityObject create(TypeTree typeTree, Map<String, Object> fields) {
-        return (UnityObject) enhancer.create(new Class[]{TypeTree.class, Map.class}, new Object[]{typeTree, fields});
+    public UnityObject create(ObjectInfo objectInfo, TypeTree typeTree, Map<String, Object> fields) {
+        return (UnityObject) enhancer.create(
+            new Class[]{ObjectInfo.class, TypeTree.class, Map.class,}, new Object[]{objectInfo, typeTree, fields});
     }
 
     @Override
     public Object intercept(Object obj, Method method, Object[] args, MethodProxy proxy) throws Throwable {
         val name = method.getName();
+        val unityObj = (UnityObject) obj;
         if (getters.containsKey(name)) {
-            return ((UnityObject) obj).getField(getters.get(name));
+            return unityObj.getField(getters.get(name));
         }
         if (setters.containsKey(name)) {
-            ((UnityObject) obj).setField(setters.get(name), args[0]);
+            unityObj.setField(setters.get(name), args[0]);
             return null;
         }
         return proxy.invokeSuper(obj, args);
@@ -50,7 +53,8 @@ class Interceptor implements MethodInterceptor, CallbackFilter {
 
     @Override
     public int accept(Method method) {
-        if (getters.containsKey(method.getName()) || setters.containsKey(method.getName())) {
+        if (getters.containsKey(method.getName()) ||
+            setters.containsKey(method.getName())) {
             return 1;
         }
         return 0;

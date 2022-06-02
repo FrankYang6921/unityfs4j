@@ -1,7 +1,8 @@
 package top.frankyang.unityfs4j.io;
 
-import lombok.Getter;
 import lombok.Setter;
+import lombok.SneakyThrows;
+import lombok.val;
 import org.apache.commons.io.IOUtils;
 
 import java.io.*;
@@ -9,7 +10,6 @@ import java.io.*;
 public class EndianDataInputStream extends FilterInputStream implements EndianDataInput {
     private final byte[] readBuffer = new byte[8];
 
-    @Getter
     @Setter
     private boolean bigEndian = true;
 
@@ -17,49 +17,57 @@ public class EndianDataInputStream extends FilterInputStream implements EndianDa
         super(in);
     }
 
+    @SneakyThrows
     @Override
-    public void readFully(byte[] b) throws IOException {
+    public void readFully(byte[] b) {
         IOUtils.readFully(this, b);
     }
 
+    @SneakyThrows
     @Override
-    public void readFully(byte[] b, int off, int len) throws IOException {
+    public void readFully(byte[] b, int off, int len) {
         IOUtils.readFully(this, b, off, len);
     }
 
+    @SneakyThrows
     @Override
-    public int skipBytes(int n) throws IOException {
+    public int skipBytes(int n) {
         return (int) IOUtils.skip(this, n);
     }
 
+    @SneakyThrows
     @Override
-    public boolean readBoolean() throws IOException {
+    public boolean readBoolean() {
         int ch = in.read();
         if (ch < 0)
             throw new EOFException();
         return ch != 0;
     }
 
+    @SneakyThrows
     @Override
-    public byte readByte() throws IOException {
+    public byte readByte() {
         return (byte) readUnsignedByte();
     }
 
+    @SneakyThrows
     @Override
-    public int readUnsignedByte() throws IOException {
+    public int readUnsignedByte() {
         int ch = in.read();
         if (ch < 0)
             throw new EOFException();
         return ch;
     }
 
+    @SneakyThrows
     @Override
-    public short readShort() throws IOException {
+    public short readShort() {
         return (short) readUnsignedShort();
     }
 
+    @SneakyThrows
     @Override
-    public int readUnsignedShort() throws IOException {
+    public int readUnsignedShort() {
         int ch1, ch2;
         if (bigEndian) {
             ch1 = in.read();
@@ -73,13 +81,15 @@ public class EndianDataInputStream extends FilterInputStream implements EndianDa
         return (ch1 << 8) + ch2;
     }
 
+    @SneakyThrows
     @Override
-    public char readChar() throws IOException {
+    public char readChar() {
         return (char) readUnsignedShort();
     }
 
+    @SneakyThrows
     @Override
-    public int readInt() throws IOException {
+    public int readInt() {
         int ch1, ch2, ch3, ch4;
         if (bigEndian) {
             ch1 = in.read();
@@ -97,8 +107,9 @@ public class EndianDataInputStream extends FilterInputStream implements EndianDa
         return (ch1 << 24) + (ch2 << 16) + (ch3 << 8) + ch4;
     }
 
+    @SneakyThrows
     @Override
-    public long readLong() throws IOException {
+    public long readLong() {
         IOUtils.readFully(this, readBuffer);
         if (bigEndian)
             return ((long) readBuffer[0] << 56) +
@@ -119,23 +130,32 @@ public class EndianDataInputStream extends FilterInputStream implements EndianDa
             (long) (readBuffer[0] & 255);
     }
 
+    @SneakyThrows
     @Override
-    public float readFloat() throws IOException {
+    public float readFloat() {
         return Float.intBitsToFloat(readInt());
     }
 
+    @SneakyThrows
     @Override
-    public double readDouble() throws IOException {
+    public double readDouble() {
         return Double.longBitsToDouble(readLong());
     }
 
+    @SneakyThrows
     @Override
     public String readLine() {
-        throw new UnsupportedOperationException();
+        val buf = new ByteArrayOutputStream();
+        int b;
+        while ((b = readUnsignedByte()) != '\n') {
+            buf.write(b);
+        }
+        return buf.toString("UTF-8").replaceAll("\r$", "");
     }
 
+    @SneakyThrows
     @Override
-    public String readUTF() throws IOException {
+    public String readUTF() {
         return DataInputStream.readUTF(this);
     }
 }

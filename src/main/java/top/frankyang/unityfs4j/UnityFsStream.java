@@ -1,29 +1,35 @@
 package top.frankyang.unityfs4j;
 
 import lombok.Getter;
-import lombok.experimental.Delegate;
 import lombok.val;
-import org.apache.commons.compress.compressors.CompressorException;
-import top.frankyang.unityfs4j.UnityFsMetadata.BlockMetadata;
-import top.frankyang.unityfs4j.UnityFsMetadata.NodeMetadata;
+import top.frankyang.unityfs4j.UnityFsMetadata.DataBlock;
+import top.frankyang.unityfs4j.UnityFsMetadata.DataNode;
+import top.frankyang.unityfs4j.asset.Asset;
+import top.frankyang.unityfs4j.exception.DataFormatException;
+import top.frankyang.unityfs4j.exception.NotYetReadException;
 import top.frankyang.unityfs4j.io.EndianDataInputStream;
-import top.frankyang.unityfs4j.io.RandomAccess;
-import top.frankyang.unityfs4j.io.Whence;
+import top.frankyang.unityfs4j.util.BufferUtils;
 import top.frankyang.unityfs4j.util.CompressionUtils;
 
 import java.io.ByteArrayInputStream;
+import java.io.Closeable;
 import java.io.IOException;
+import java.nio.ByteOrder;
+import java.nio.MappedByteBuffer;
+import java.nio.channels.FileChannel;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.UUID;
 
 @Getter
-public class UnityFsStream implements RandomAccess {
+public class UnityFsStream implements Iterable<Asset>, Closeable {
     public static final String MAGIC_WORD = "UnityFS";
 
-    @Delegate(types = RandomAccess.class)
-    private final RandomAccess in;
+    private final UnityFsContext context;
 
-    private final UnityFsRoot root;
+    private final FileChannel channel;
+
+    private final MappedByteBuffer buffer;
 
     protected UnityFsHeader header;
 
@@ -33,31 +39,29 @@ public class UnityFsStream implements RandomAccess {
 
     protected String name;
 
-    public UnityFsStream(RandomAccess in) {
-        this(in, null);
+    protected UnityFsStream(FileChannel channel, UnityFsContext context) throws IOException {
+        this.channel = channel;
+        this.context = context;
+        buffer = channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size());
+        buffer.order(ByteOrder.BIG_ENDIAN);
     }
 
-    protected UnityFsStream(RandomAccess in, UnityFsRoot root) {
-        this.in = in;
-        this.root = root;
-    }
-
-    public UnityFsHeader readHeader() throws IOException {
-        val magicWord = in.readString();
+    public UnityFsHeader readHeader() {
+        val magicWord = BufferUtils.getString(buffer);
         if (!magicWord.equals(MAGIC_WORD)) {
-            throw new UnsupportedOperationException(
+            throw new DataFormatException(
                 "Illegal magic word: '" + MAGIC_WORD + "' expected, got '" + magicWord + '\''
             );
         }
 
-        val fileVersion = in.readInt();
-        val playerVersion = in.readString();
-        val engineVersion = in.readString();
+        val fileVersion = buffer.getInt();
+        val playerVersion = BufferUtils.getString(buffer);
+        val engineVersion = BufferUtils.getString(buffer);
 
-        val size = in.readLong();
-        val compressedMetadataSize = in.readInt();
-        val uncompressedMetadataSize = in.readInt();
-        val flag = in.readInt();
+        val size = buffer.getLong();
+        val compressedMetadataSize = buffer.getInt();
+        val uncompressedMetadataSize = buffer.getInt();
+        val flag = buffer.getInt();
 
         return header = new UnityFsHeader(
             fileVersion,
@@ -70,66 +74,76 @@ public class UnityFsStream implements RandomAccess {
         );
     }
 
-    public UnityFsMetadata readMetadata() throws IOException {
+    public UnityFsMetadata readMetadata() {
         if (header == null) {
-            throw new IllegalStateException("Header must be read before reading metadata");
+            throw new NotYetReadException("Header must be read before reading metadata");
         }
 
-        long pointer = 0;
+        int pointer = 0;
         if (header.isEOFMetadata()) {
-            pointer = in.tell();
-            in.seek(-header.getCompressedMetadataSize(), Whence.TAIL);
+            pointer = buffer.position();
+            BufferUtils.seekTail(buffer, header.getCompressedSize());
         }
-        byte[] bytes;
-        try {
-            bytes = CompressionUtils.decompress(
-                in.asInputStream(), header.getUncompressedMetadataSize(), header.getCompressionType()
-            );
-        } catch (CompressorException e) {
-            throw new IOException(e);
-        }
+        byte[] bytes = CompressionUtils.decompress(
+            BufferUtils.asInputStream(buffer),
+            header.getUncompressedSize(),
+            header.getCompressionType()
+        );
         if (header.isEOFMetadata()) {
-            in.seek(pointer);
+            buffer.position(pointer);
         }
 
         val in = new EndianDataInputStream(new ByteArrayInputStream(bytes));
         val uuid = new UUID(in.readLong(), in.readLong());
 
         val blockCount = in.readInt();
-        val blockMetadataList = new ArrayList<BlockMetadata>(blockCount);
+        val blocks = new ArrayList<DataBlock>(blockCount);  // Initial capacity given, avoid useless allocation
         for (int i = 0; i < blockCount; i++) {
             val uncompressedSize = in.readInt();
             val compressedSize = in.readInt();
             val flag = in.readShort();
-            blockMetadataList.add(new BlockMetadata(
+            blocks.add(new DataBlock(
                 uncompressedSize, compressedSize, flag
             ));
         }
 
         val nodeCount = in.readInt();
-        val nodeMetadataList = new ArrayList<NodeMetadata>(nodeCount);
+        val nodes = new ArrayList<DataNode>(nodeCount);  // Initial capacity given, avoid useless allocation
         for (int i = 0; i < nodeCount; i++) {
             val offset = in.readLong();
             val size = in.readLong();
             val status = in.readInt();
             val name = in.readString();
-            nodeMetadataList.add(new NodeMetadata(
+            nodes.add(new DataNode(
                 offset, size, status, name
             ));
         }
 
-        name = nodeMetadataList.get(0).getName();
+        name = nodes.get(0).getName();
         return metadata = new UnityFsMetadata(
             uuid,
-            blockMetadataList,
-            nodeMetadataList
+            blocks,
+            nodes
         );
     }
 
-    public UnityFsPayload readPayload() throws IOException {
+    public UnityFsPayload readPayload() {
         if (metadata == null) {
-            throw new IllegalStateException("Metadata must be read before reading payload");
+            throw new NotYetReadException("Metadata must be read before reading payload");
         }
-        return payload = new UnityFsPayload(this, metadata);
+        return payload = new UnityFsPayload(buffer, metadata, context);
+    }
+
+    @Override
+    public Iterator<Asset> iterator() {
+        if (payload == null) {
+            throw new NotYetReadException("Payload must be read before iterating assets");
+        }
+        return payload.iterator();
+    }
+
+    @Override
+    public void close() throws IOException {
+        channel.close();
     }
 }

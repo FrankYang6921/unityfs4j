@@ -1,53 +1,63 @@
 package top.frankyang.unityfs4j.io;
 
+import lombok.val;
 import org.apache.commons.io.IOUtils;
 
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URL;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
 public interface RandomAccess extends EndianDataInput, Closeable {
-    RandomAccess EMPTY = new RandomAccessBuf(new byte[0]);
-
     static RandomAccess of(byte[] b) {
-        return new RandomAccessBuf(b);
+        return new RandomAccessImpl(ByteBuffer.wrap(b));
+    }
+
+    static RandomAccess of(byte[] b, int off, int len) {
+        return new RandomAccessImpl(ByteBuffer.wrap(b, off, len));
     }
 
     static RandomAccess of(File file) throws IOException {
-        return new RandomAccessFile(file);
+        return of(Paths.get(file.getPath()));
     }
 
-    static RandomAccess of(URL url) throws IOException {
-        return of(IOUtils.toByteArray(url));
+    static RandomAccess of(Path path) throws IOException {
+        return of(FileChannel.open(path));
     }
 
-    static RandomAccess of(Path path) throws IOException {  // TODO use SeekableByteChannel
-        if (path.getFileSystem() == FileSystems.getDefault()) {
-            return of(path.toFile());
-        }
-        return of(Files.readAllBytes(path));
+    static RandomAccess of(FileChannel channel) throws IOException {
+        val buf = channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size());
+        return new RandomAccessImpl(buf) {
+            @Override
+            public void close() {
+                super.close();
+                IOUtils.closeQuietly(channel);
+            }
+        };
     }
 
-    void align() throws IOException;
+    void align();
 
-    void seek(long offset) throws IOException;
+    void seek(long offset);
 
-    void seek(long offset, Whence whence) throws IOException;
+    void seek(long offset, Whence whence);
 
-    long tell() throws IOException;
+    long tell();
 
-    long size() throws IOException;
+    long size();
 
-    int read() throws IOException;
+    int read();
 
-    int read(byte[] b) throws IOException;
+    int read(byte[] b);
 
-    int read(byte[] b, int off, int len) throws IOException;
+    int read(byte[] b, int off, int len);
 
-    InputStream asInputStream() throws IOException;
+    InputStream asInputStream();
+
+    @Override
+    void close();
 }

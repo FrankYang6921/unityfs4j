@@ -9,12 +9,12 @@ import java.util.UUID;
 public class UnityFsMetadata {
     UUID uuid;
 
-    List<BlockMetadata> blockMetadataList;
+    List<DataBlock> dataBlocks;
 
-    List<NodeMetadata> nodeMetadataList;
+    List<DataNode> dataNodes;
 
     @Value
-    public static class BlockMetadata {
+    public static class DataBlock {
         int uncompressedSize;
 
         int compressedSize;
@@ -27,7 +27,7 @@ public class UnityFsMetadata {
     }
 
     @Value
-    public static class NodeMetadata {
+    public static class DataNode {
         long offset;
 
         long size;

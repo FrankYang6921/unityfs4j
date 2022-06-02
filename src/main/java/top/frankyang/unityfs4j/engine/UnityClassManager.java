@@ -1,7 +1,11 @@
 package top.frankyang.unityfs4j.engine;
 
 import lombok.val;
+import top.frankyang.unityfs4j.asset.ObjectInfo;
 import top.frankyang.unityfs4j.asset.TypeTree;
+import top.frankyang.unityfs4j.impl.PPtr;
+import top.frankyang.unityfs4j.impl.Pair;
+import top.frankyang.unityfs4j.util.StringUtils;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -13,6 +17,7 @@ public class UnityClassManager {
     private final Map<Class<?>, Interceptor> interceptors = new ConcurrentHashMap<>();
 
     private UnityClassManager() {
+        registerDefaults();
     }
 
     public static UnityClassManager getInstance() {
@@ -28,12 +33,18 @@ public class UnityClassManager {
         registry.put(className, klass);
     }
 
-    public UnityObject createObject(TypeTree typeTree, Map<String, Object> fields) {
-        if (!registry.containsKey(typeTree.getType())) {
-            return new UnityObjectImpl(typeTree, fields);
+    public UnityObject createObject(ObjectInfo objectInfo, TypeTree typeTree, Map<String, Object> fields) {
+        val rawType = StringUtils.substrTo(typeTree.getType(), '<');
+        if (registry.containsKey(rawType)) {
+            return interceptors
+                .computeIfAbsent(registry.get(rawType), Interceptor::new).create(objectInfo, typeTree, fields);
         }
-        return interceptors.computeIfAbsent(registry.get(typeTree.getType()), Interceptor::new)
-            .create(typeTree, fields);
+        return new UnityObjectImpl(objectInfo, typeTree, fields);
+    }
+
+    private void registerDefaults() {
+        register(PPtr.class);
+        register(Pair.class);
     }
 
     private static class UnityClassManagerSingleton {

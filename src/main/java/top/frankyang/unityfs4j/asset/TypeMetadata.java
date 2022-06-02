@@ -5,12 +5,10 @@ import lombok.val;
 import lombok.var;
 import org.apache.commons.io.IOUtils;
 import top.frankyang.unityfs4j.io.RandomAccess;
+import top.frankyang.unityfs4j.util.BufferUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Getter
 public class TypeMetadata {
@@ -20,7 +18,7 @@ public class TypeMetadata {
 
     private final Map<Integer, byte[]> hashes = new HashMap<>();
 
-    private final Map<Integer, TypeTree> trees = new HashMap<>();
+    private final Map<Integer, TypeTree> types = new HashMap<>();
 
     protected String engineVersion;
 
@@ -32,22 +30,34 @@ public class TypeMetadata {
         return TypeMetadataSingleton.INSTANCE;
     }
 
-    protected void load() throws IOException {
-        load(asset.getPayload(), asset.getFormat());
+    public List<Integer> getClassIds() {
+        return Collections.unmodifiableList(classIds);
     }
 
-    protected void load(RandomAccess payload, int format) throws IOException {
+    public Map<Integer, byte[]> getHashes() {
+        return Collections.unmodifiableMap(hashes);
+    }
+
+    public Map<Integer, TypeTree> getTypes() {
+        return Collections.unmodifiableMap(types);
+    }
+
+    protected final void load() {
+        load(asset.getPayload(), asset.formatVersion);
+    }
+
+    protected void load(RandomAccess payload, int formatVersion) {
         engineVersion = payload.readString();
         payload.readInt();  // Platform ID, unnecessary
 
-        if (format >= 13) {
+        if (formatVersion >= 13) {
             val hasTypeTrees = payload.readBoolean();
             val typeCount = payload.readInt();
 
             for (int i = 0; i < typeCount; i++) {
                 var classId = payload.readInt();
 
-                if (format >= 17) {
+                if (formatVersion >= 17) {
                     payload.readByte();  // DK
                     val scriptId = payload.readShort();
                     if (classId == 114) {
@@ -57,19 +67,19 @@ public class TypeMetadata {
                 classIds.add(classId);
                 byte[] hash;
                 if (classId < 0) {
-                    hash = IOUtils.readFully(payload.asInputStream(), 32);
+                    hash = BufferUtils.read(payload, 32);
                 } else {
-                    hash = IOUtils.readFully(payload.asInputStream(), 16);
+                    hash = BufferUtils.read(payload, 16);
                 }
                 hashes.put(classId, hash);
 
                 if (hasTypeTrees) {
-                    val tree = new TypeTree(format);
+                    val tree = new TypeTree(formatVersion);
                     tree.load(payload);
-                    trees.put(classId, tree);
+                    types.put(classId, tree);
                 }
 
-                if (format >= 21) {
+                if (formatVersion >= 21) {
                     payload.readInt();  // DK
                 }
             }
@@ -78,9 +88,9 @@ public class TypeMetadata {
         val fieldCount = payload.readInt();
         for (int i = 0; i < fieldCount; i++) {
             var classId = payload.readInt();
-            val tree = new TypeTree(format);
+            val tree = new TypeTree(formatVersion);
             tree.load(payload);
-            trees.put(classId, tree);
+            types.put(classId, tree);
         }
     }
 

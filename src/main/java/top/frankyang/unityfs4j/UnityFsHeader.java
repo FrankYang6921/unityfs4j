@@ -12,9 +12,9 @@ public class UnityFsHeader {
 
     long size;
 
-    int compressedMetadataSize;
+    int compressedSize;
 
-    int uncompressedMetadataSize;
+    int uncompressedSize;
 
     int flag;
 

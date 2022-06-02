@@ -3,7 +3,6 @@ package top.frankyang.unityfs4j.asset;
 import lombok.Getter;
 import lombok.val;
 
-import java.io.IOException;
 import java.util.UUID;
 
 @Getter
@@ -18,20 +17,25 @@ public class AssetReference implements AssetResolvable {
 
     protected String filePath;
 
+    protected Asset referent;
+
     public AssetReference(Asset asset) {
         this.asset = asset;
     }
 
-    protected void load() throws IOException {
+    protected void load() {
         val payload = asset.getPayload();
         assetPath = payload.readString();
-        uuid = new UUID(payload.readLong(), payload.readLong());
+        uuid = payload.readUuid();
         type = payload.readInt();
         filePath = payload.readString();
     }
 
     @Override
-    public Asset resolve() throws IOException {
-        return asset.getAsset(filePath);
+    public Asset getReferent() {
+        if (referent == null) {
+            referent = asset.getAsset(filePath);
+        }
+        return referent;
     }
 }

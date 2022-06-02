@@ -1,20 +1,18 @@
 package top.frankyang.unityfs4j.asset;
 
 import lombok.Getter;
+import lombok.SneakyThrows;
 import lombok.val;
-import top.frankyang.unityfs4j.UnityFsMetadata.NodeMetadata;
+import top.frankyang.unityfs4j.UnityFsContext;
+import top.frankyang.unityfs4j.UnityFsMetadata.DataNode;
 import top.frankyang.unityfs4j.UnityFsPayload;
-import top.frankyang.unityfs4j.UnityFsRoot;
-import top.frankyang.unityfs4j.UnityFsStream;
+import top.frankyang.unityfs4j.exception.DataFormatException;
+import top.frankyang.unityfs4j.exception.ObjectRegistryException;
 import top.frankyang.unityfs4j.io.RandomAccess;
-import top.frankyang.unityfs4j.util.Pair;
+import top.frankyang.unityfs4j.util.LongIntegerPair;
 
-import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URL;
 import java.nio.file.Path;
 import java.util.*;
 
@@ -22,9 +20,7 @@ import java.util.*;
 public class Asset implements AssetResolvable, Iterable<ObjectInfo> {
     private final RandomAccess payload;
 
-    private final UnityFsStream stream;
-
-    private final UnityFsRoot root;
+    private final UnityFsContext root;
 
     private final TypeMetadata typeMetadata = new TypeMetadata(this);
 
@@ -32,9 +28,9 @@ public class Asset implements AssetResolvable, Iterable<ObjectInfo> {
 
     private final long offset;
 
-    private final List<Pair<Long, Integer>> adds = new ArrayList<>();
+    private final ArrayList<LongIntegerPair> adds = new ArrayList<>();
 
-    private final List<AssetResolvable> refs = new ArrayList<>();
+    private final ArrayList<AssetResolvable> refs = new ArrayList<>();
 
     private final Map<Integer, TypeTree> types = new HashMap<>();
 
@@ -48,40 +44,76 @@ public class Asset implements AssetResolvable, Iterable<ObjectInfo> {
 
     protected int contentSize;
 
-    protected int format;
+    protected int formatVersion;
 
     protected int contentOffset;
 
-    public Asset(URL url, UnityFsRoot root) throws IOException {
-        this(RandomAccess.of(url), null, root, url.getFile(), 0);
+    public Asset(Path path, UnityFsContext root) throws IOException {
+        this(RandomAccess.of(path), root, path.getFileName().toString(), 0);
     }
 
-    public Asset(File file, UnityFsRoot root) throws IOException {
-        this(RandomAccess.of(file), null, root, file.getName(), 0);
+    public Asset(UnityFsPayload payload, DataNode node) {
+        this(payload, payload.getContext(), node.getName(), node.getOffset());
     }
 
-    public Asset(Path path, UnityFsRoot root) throws IOException {
-        this(RandomAccess.of(path), null, root, path.getFileName().toString(), 0);
-    }
-
-    public Asset(UnityFsPayload payload, NodeMetadata node) {
-        this(payload, payload.getStream(), payload.getStream().getRoot(), node.getName(), node.getOffset());
-    }
-
-    protected Asset(RandomAccess payload, UnityFsStream stream, UnityFsRoot root, String name, long offset) {
+    protected Asset(RandomAccess payload, UnityFsContext root, String name, long offset) {
         this.payload = payload;
-        this.stream = stream;
         this.root = root;
         this.name = name;
         this.offset = offset;
         refs.add(this);
     }
 
+    public List<LongIntegerPair> getAdds() {
+        ensureLoaded();
+        return Collections.unmodifiableList(adds);
+    }
+
+    public List<AssetResolvable> getRefs() {
+        ensureLoaded();
+        return Collections.unmodifiableList(refs);
+    }
+
+    public Map<Integer, TypeTree> getTypes() {
+        ensureLoaded();
+        return Collections.unmodifiableMap(types);
+    }
+
+    public Map<Long, ObjectInfo> getObjects() {
+        ensureLoaded();
+        return Collections.unmodifiableMap(objects);
+    }
+
+    public boolean isLongObjectId() {
+        ensureLoaded();
+        return longObjectId;
+    }
+
+    public int getMetadataSize() {
+        ensureLoaded();
+        return metadataSize;
+    }
+
+    public int getContentSize() {
+        ensureLoaded();
+        return contentSize;
+    }
+
+    public int getFormatVersion() {
+        ensureLoaded();
+        return formatVersion;
+    }
+
+    public int getContentOffset() {
+        ensureLoaded();
+        return contentOffset;
+    }
+
     public boolean isResource() {
         return name.endsWith(".resource") || name.endsWith(".resS");
     }
 
-    public void load() throws IOException {
+    public synchronized void ensureLoaded() {
         if (loaded) return;
         if (isResource()) {
             loaded = true;
@@ -92,35 +124,44 @@ public class Asset implements AssetResolvable, Iterable<ObjectInfo> {
 
         metadataSize = payload.readInt();
         contentSize = payload.readInt();
-        format = payload.readInt();
+        formatVersion = payload.readInt();
         contentOffset = payload.readInt();
 
-        payload.setBigEndian(format <= 9 || payload.readInt() != 0);
+        payload.setBigEndian(formatVersion <= 9 || payload.readInt() != 0);
 
         typeMetadata.load();
 
-        if (format >= 7 && format <= 13) {
+        if (formatVersion >= 7 && formatVersion <= 13) {
             longObjectId = payload.readInt() != 0;
         }
 
         val objectCount = payload.readInt();
         for (int i = 0; i < objectCount; i++) {
-            if (format >= 14) payload.align();
+            if (formatVersion >= 14) {
+                payload.align();
+            }
             val object = new ObjectInfo(this);
             object.load();
             register(object);
         }
 
-        if (format >= 11) {
+        if (formatVersion >= 11) {
             val addCount = payload.readInt();
+            adds.ensureCapacity(addCount);
             for (int i = 0; i < addCount; i++) {
-                if (format >= 14) payload.align();
-                adds.add(Pair.of(readId(), payload.readInt()));
+                if (formatVersion >= 14) {
+                    payload.align();
+                }
+                val add = LongIntegerPair.of(
+                    readId(), payload.readInt()
+                );
+                adds.add(add);
             }
         }
 
-        if (format >= 6) {
+        if (formatVersion >= 6) {
             val refCount = payload.readInt();
+            refs.ensureCapacity(refCount);
             for (int i = 0; i < refCount; i++) {
                 val ref = new AssetReference(this);
                 ref.load();
@@ -129,55 +170,54 @@ public class Asset implements AssetResolvable, Iterable<ObjectInfo> {
         }
 
         if (!payload.readString().isEmpty()) {  // DK
-            throw new IOException();
+            throw new DataFormatException();
         }
 
         loaded = true;
     }
 
     protected void register(ObjectInfo object) {
-        if (typeMetadata.getTrees().containsKey(object.getTypeId())) {
-            types.computeIfAbsent(object.getTypeId(), typeMetadata.getTrees()::get);
-        } else if (!types.containsKey(object.getTypeId())) {
-            types.put(object.getTypeId(),
-                TypeMetadata.getInstance().getTrees()
-                    .getOrDefault(object.getClassId(), null)
+        if (typeMetadata.getTypes().containsKey(object.getTypeId())) {
+            types.computeIfAbsent(object.getTypeId(), typeMetadata.getTypes()::get);
+        } else {
+            types.computeIfAbsent(object.getTypeId(), t ->
+                TypeMetadata.getInstance().getTypes().get(object.getClassId())
             );
         }
         if (objects.containsKey(object.getPathId())) {
-            throw new IllegalStateException("Duplicate of object: " + object);
+            throw new ObjectRegistryException("Duplicate of object: " + object);
         }
         objects.put(object.getPathId(), object);
     }
 
-    protected long readId(RandomAccess buf) throws IOException {
-        return format >= 14 ? buf.readLong() : buf.readInt();
-    }
-
-    protected long readId() throws IOException {
+    protected long readId() {
         return readId(payload);
     }
 
-    protected Asset getAsset(String path) throws IOException {
-        if (root == null) return null;
-        try {
-            if (path.contains(":")) {
-                return root.getAsset(new URI(path));
-            }
-            return root.getAssetByFileName(path);
-        } catch (FileNotFoundException |
-                 URISyntaxException e) {
+    protected long readId(RandomAccess buf) {
+        return formatVersion >= 14 ? buf.readLong() : buf.readInt();
+    }
+
+    @SneakyThrows
+    protected Asset getAsset(String file) {
+        if (root == null) {
             return null;
         }
+        val uri = new URI(file);
+        if (file.contains(":")) {
+            return root.getAssetByUri(uri);
+        }
+        return root.getAssetByName(file);
     }
 
     @Override
-    public Asset resolve() {
+    public Asset getReferent() {
         return this;
     }
 
     @Override
     public Iterator<ObjectInfo> iterator() {
+        ensureLoaded();
         return objects.values().iterator();
     }
 }

@@ -6,6 +6,7 @@ import org.apache.commons.compress.compressors.CompressorException;
 import org.apache.commons.compress.compressors.CompressorStreamFactory;
 import org.apache.commons.io.IOUtils;
 import top.frankyang.unityfs4j.CompressionType;
+import top.frankyang.unityfs4j.exception.DataFormatException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -14,7 +15,15 @@ import java.io.InputStream;
 public class CompressionUtils {
     private final CompressorStreamFactory FACTORY = CompressorStreamFactory.getSingleton();
 
-    public byte[] decompress(InputStream in, int size, CompressionType compressionType) throws IOException, CompressorException {
+    public byte[] decompress(InputStream in, int size, CompressionType compressionType) {
+        try {
+            return decompress0(in, size, compressionType);
+        } catch (CompressorException | IOException e) {
+            throw new DataFormatException(e);
+        }
+    }
+
+    private byte[] decompress0(InputStream in, int size, CompressionType compressionType) throws IOException, CompressorException {
         val buf = new byte[size];
         switch (compressionType) {
             case NONE:

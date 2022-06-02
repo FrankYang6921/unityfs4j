@@ -2,72 +2,105 @@ package top.frankyang.unityfs4j;
 
 import lombok.Getter;
 import lombok.val;
-import top.frankyang.unityfs4j.UnityFsMetadata.BlockMetadata;
-import top.frankyang.unityfs4j.UnityFsMetadata.NodeMetadata;
+import top.frankyang.unityfs4j.UnityFsMetadata.DataBlock;
+import top.frankyang.unityfs4j.UnityFsMetadata.DataNode;
 import top.frankyang.unityfs4j.asset.Asset;
 import top.frankyang.unityfs4j.io.AbstractRandomAccess;
-import top.frankyang.unityfs4j.io.RandomAccess;
-import top.frankyang.unityfs4j.io.Whence;
-import top.frankyang.unityfs4j.util.Cache;
+import top.frankyang.unityfs4j.util.BufferUtils;
 import top.frankyang.unityfs4j.util.CompressionUtils;
 
-import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 @Getter
 public class UnityFsPayload extends AbstractRandomAccess implements Iterable<Asset> {
-    private final Cache<NodeMetadata, Asset> assetCache = new Cache<>();
+    private static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0);
 
-    private final Cache<BlockMetadata, byte[]> blockCache = new Cache<>();
+    private final Map<DataNode, Asset> nodeAssetMap = new HashMap<>();
 
-    private final UnityFsStream stream;
+    private final Map<DataBlock, byte[]> blockDataMap = new HashMap<>();
+
+    private final ByteBuffer buffer;
 
     private final UnityFsMetadata metadata;
 
-    private final List<BlockMetadata> blocks;
+    private final UnityFsContext context;
 
-    private final long baseOffset;
+    private final List<DataBlock> dataBlocks;
 
-    private final long maxOffset;
+    private final int baseOffset;
 
-    protected long pointer;
+    private final int actualSize;
 
-    protected BlockMetadata currentBlock;
+    protected int pointer;
 
-    protected RandomAccess currentStream;
+    protected DataBlock currentBlock;
 
-    protected long currentBlockBaseOffset;
+    protected ByteBuffer currentBuf;
 
-    protected UnityFsPayload(UnityFsStream stream, UnityFsMetadata metadata) throws IOException {
-        this.stream = stream;
+    protected int currentBlockBaseOffset;
+
+    protected UnityFsPayload(ByteBuffer buffer, UnityFsMetadata metadata, UnityFsContext context) {
+        this.buffer = buffer;
         this.metadata = metadata;
-        blocks = metadata.getBlockMetadataList();
-        baseOffset = stream.tell();
-        maxOffset = blocks.stream().mapToInt(BlockMetadata::getUncompressedSize).sum();
+        this.context = context;
+        dataBlocks = metadata.getDataBlocks();
+        baseOffset = buffer.position();
+        actualSize = dataBlocks.stream().mapToInt(DataBlock::getUncompressedSize).sum();
         seek(0);
     }
 
-    @Override
-    public void seek(long offset) throws IOException {
-        if (pointer == offset) return;
-        pointer = offset;
-        if (isOutOfCurrentBlock(offset)) {
-            seekToBlock(offset);
+    protected void seekToBlock(long offset) {
+        int baseOffset = 0;
+        int realOffset = 0;
+        loop:
+        {
+            for (val block : dataBlocks) {
+                if (realOffset + block.getUncompressedSize() > offset) {
+                    currentBlock = block;
+                    break loop;
+                }
+                baseOffset += block.getCompressedSize();
+                realOffset += block.getUncompressedSize();
+            }
+            currentBlock = null;
+            currentBuf = EMPTY_BUFFER;
+            return;
         }
-        currentStream.seek(offset - currentBlockBaseOffset);
+        currentBlockBaseOffset = realOffset;
+        buffer.position(this.baseOffset + baseOffset);
+        byte[] bytes;
+        if (blockDataMap.containsKey(currentBlock)) {
+            bytes = blockDataMap.get(currentBlock);
+        } else {
+            bytes = CompressionUtils.decompress(
+                BufferUtils.asInputStream(buffer),
+                currentBlock.getUncompressedSize(),
+                currentBlock.getCompressionType()
+            );
+            blockDataMap.put(currentBlock, bytes);
+        }
+        currentBuf = ByteBuffer.wrap(bytes);
+    }
+
+    protected boolean isOutOfCurrentBlock(long offset) {
+        if (currentBlock == null) return true;
+        val currentBlockMax = currentBlockBaseOffset +
+            currentBlock.getUncompressedSize();
+        return currentBlockBaseOffset > offset || offset >= currentBlockMax;
     }
 
     @Override
-    public void seek(long offset, Whence whence) throws IOException {
-        switch (whence) {
-            case HEAD:
-                seek(offset);
-            case TAIL:
-                seek(size() + offset);
-            case POINTER:
-                seek(tell() + offset);
+    public void seek(long offset) {
+        if (pointer == offset) return;
+        pointer = (int) offset;
+        if (isOutOfCurrentBlock(offset)) {
+            seekToBlock(offset);
         }
+        currentBuf.position((int) offset - currentBlockBaseOffset);
     }
 
     @Override
@@ -77,65 +110,28 @@ public class UnityFsPayload extends AbstractRandomAccess implements Iterable<Ass
 
     @Override
     public long size() {
-        return maxOffset;
-    }
-
-    public void seekToBlock(long offset) throws IOException {
-        long baseOffset = 0;
-        long realOffset = 0;
-        loop:
-        {
-            for (val block : blocks) {
-                if (realOffset + block.getUncompressedSize() > offset) {
-                    currentBlock = block;
-                    break loop;
-                }
-                baseOffset += block.getCompressedSize();
-                realOffset += block.getUncompressedSize();
-            }
-            currentBlock = null;
-            currentStream = RandomAccess.EMPTY;
-            return;
-        }
-        currentBlockBaseOffset = realOffset;
-        stream.seek(this.baseOffset + baseOffset);
-        byte[] bytes;
-        try {
-            bytes = blockCache.computeIfAbsent(currentBlock, () ->
-                CompressionUtils.decompress(
-                    stream.asInputStream(),
-                    currentBlock.getUncompressedSize(),
-                    currentBlock.getCompressionType()
-                )
-            );
-        } catch (Exception e) {
-            throw new IOException(e);
-        }
-        currentStream = RandomAccess.of(bytes);
-    }
-
-    public boolean isOutOfCurrentBlock(long offset) {
-        if (currentBlock == null) return true;
-        val currentBlockMax = currentBlockBaseOffset +
-            currentBlock.getUncompressedSize();
-        return currentBlockBaseOffset > offset || offset >= currentBlockMax;
+        return actualSize;
     }
 
     @Override
-    public int read() throws IOException {
+    public int read() {
         if (isOutOfCurrentBlock(pointer)) {
             seekToBlock(pointer);
+        }
+        val ret = BufferUtils.read(currentBuf);
+        if (ret < 0) {
+            return ret;
         }
         pointer++;
-        return currentStream.read();
+        return ret;
     }
 
     @Override
-    public int read(byte[] b, int off, int len) throws IOException {
+    public int read(byte[] b, int off, int len) {
         if (isOutOfCurrentBlock(pointer)) {
             seekToBlock(pointer);
         }
-        len = currentStream.read(b, off, len);
+        len = BufferUtils.read(currentBuf, b, off, len);
         pointer += len;
         return len;
     }
@@ -145,13 +141,8 @@ public class UnityFsPayload extends AbstractRandomAccess implements Iterable<Ass
         return new AssetIterator();
     }
 
-    @Override
-    public void close() throws IOException {
-        stream.close();
-    }
-
     protected class AssetIterator implements Iterator<Asset> {
-        final Iterator<NodeMetadata> itr = metadata.getNodeMetadataList().iterator();
+        final Iterator<DataNode> itr = metadata.getDataNodes().iterator();
 
         @Override
         public boolean hasNext() {
@@ -160,7 +151,7 @@ public class UnityFsPayload extends AbstractRandomAccess implements Iterable<Ass
 
         @Override
         public Asset next() {
-            return assetCache.computeIfAbsent(itr.next(), node -> new Asset(UnityFsPayload.this, node));
+            return nodeAssetMap.computeIfAbsent(itr.next(), node -> new Asset(UnityFsPayload.this, node));
         }
     }
 }

@@ -2,25 +2,23 @@ package top.frankyang.unityfs4j.engine;
 
 import lombok.Getter;
 import lombok.val;
+import top.frankyang.unityfs4j.asset.ObjectInfo;
 import top.frankyang.unityfs4j.asset.TypeTree;
 
-import java.util.Collections;
 import java.util.Map;
 
+@Getter
 public class UnityObjectImpl implements UnityObject {
-    @Getter
     private final TypeTree typeTree;
 
     private final Map<String, Object> fields;
 
-    protected UnityObjectImpl(TypeTree typeTree, Map<String, Object> fields) {
+    private final ObjectInfo objectInfo;
+
+    protected UnityObjectImpl(ObjectInfo objectInfo, TypeTree typeTree, Map<String, Object> fields) {
         this.typeTree = typeTree;
         this.fields = fields;
-    }
-
-    @Override
-    public Map<String, Object> getFields() {
-        return Collections.unmodifiableMap(fields);
+        this.objectInfo = objectInfo;
     }
 
     @Override

@@ -5,11 +5,13 @@ import lombok.val;
 import org.apache.commons.io.IOUtils;
 import top.frankyang.unityfs4j.io.RandomAccess;
 import top.frankyang.unityfs4j.io.Whence;
+import top.frankyang.unityfs4j.util.BufferUtils;
 import top.frankyang.unityfs4j.util.StringUtils;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -18,8 +20,6 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 @Getter
 public class TypeTree {
     public static final String STRINGS_DAT;
-
-    public static final String NULL = "(null)";
 
     static {
         try {
@@ -39,9 +39,9 @@ public class TypeTree {
 
     protected boolean isArray;
 
-    protected String type = NULL;
+    protected String type;
 
-    protected String name = NULL;
+    protected String name;
 
     protected int size;
 
@@ -53,7 +53,11 @@ public class TypeTree {
         this.format = format;
     }
 
-    protected void load(RandomAccess payload) throws IOException {
+    public List<TypeTree> getChildren() {
+        return Collections.unmodifiableList(children);
+    }
+
+    protected void load(RandomAccess payload) {
         if (format >= 12 || format == 10) {
             loadBlob(payload);
             return;
@@ -61,7 +65,7 @@ public class TypeTree {
         throw new UnsupportedOperationException();  // TODO
     }
 
-    protected void loadBlob(RandomAccess payload) throws IOException {
+    protected void loadBlob(RandomAccess payload) {
         val nodeCount = payload.readInt();
         val stringSize = payload.readInt();
         val nodeSize = format >= 19 ? 32 : 24;
@@ -69,7 +73,7 @@ public class TypeTree {
         val bodySize = dataSize + stringSize;
         val oldPointer = payload.tell();
         payload.seek(dataSize, Whence.POINTER);
-        string = new String(IOUtils.readFully(payload.asInputStream(), stringSize), UTF_8);
+        string = new String(BufferUtils.read(payload, stringSize), UTF_8);
         payload.seek(-bodySize, Whence.POINTER);
 
         val parents = new LinkedList<TypeTree>();
@@ -117,10 +121,10 @@ public class TypeTree {
         } else {
             return null;
         }
-        return StringUtils.truncateTo(data.substring(ptr), '\0');
+        return StringUtils.substrTo(data.substring(ptr), '\0');
     }
 
-    public boolean isPostAlign() {
+    public boolean isAligned() {
         return (flag & 0x4000) > 0;
     }
 }

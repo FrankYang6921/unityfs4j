@@ -1,13 +1,11 @@
 package top.frankyang.unityfs4j.io;
 
-import lombok.experimental.Delegate;
 import lombok.val;
 
 import java.io.IOException;
 import java.io.InputStream;
 
 public abstract class AbstractRandomAccess implements RandomAccess {
-    @Delegate(types = EndianDataInput.class)
     protected final EndianDataInputStream in;
 
     protected AbstractRandomAccess() {
@@ -15,7 +13,7 @@ public abstract class AbstractRandomAccess implements RandomAccess {
     }
 
     @Override
-    public void align() throws IOException {
+    public void align() {
         val ptr = tell();
         val off = (ptr + 3) & -4;
         if (off > ptr) {
@@ -24,7 +22,7 @@ public abstract class AbstractRandomAccess implements RandomAccess {
     }
 
     @Override
-    public void seek(long offset, Whence whence) throws IOException {
+    public void seek(long offset, Whence whence) {
         switch (whence) {
             case HEAD:
                 seek(offset);
@@ -36,7 +34,7 @@ public abstract class AbstractRandomAccess implements RandomAccess {
     }
 
     @Override
-    public int read(byte[] b) throws IOException {
+    public int read(byte[] b) {
         return read(b, 0, b.length);
     }
 
@@ -46,29 +44,119 @@ public abstract class AbstractRandomAccess implements RandomAccess {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
+    }
+
+    @Override
+    public void setBigEndian(boolean bigEndian) {
+        in.setBigEndian(bigEndian);
+    }
+
+    @Override
+    public void readFully(byte[] b) {
+        in.readFully(b);
+    }
+
+    @Override
+    public void readFully(byte[] b, int off, int len) {
+        in.readFully(b, off, len);
+    }
+
+    @Override
+    public int skipBytes(int n) {
+        return in.skipBytes(n);
+    }
+
+    @Override
+    public boolean readBoolean() {
+        return in.readBoolean();
+    }
+
+    @Override
+    public byte readByte() {
+        return in.readByte();
+    }
+
+    @Override
+    public int readUnsignedByte() {
+        return in.readUnsignedByte();
+    }
+
+    @Override
+    public short readShort() {
+        return in.readShort();
+    }
+
+    @Override
+    public int readUnsignedShort() {
+        return in.readUnsignedShort();
+    }
+
+    @Override
+    public char readChar() {
+        return in.readChar();
+    }
+
+    @Override
+    public int readInt() {
+        return in.readInt();
+    }
+
+    @Override
+    public long readLong() {
+        return in.readLong();
+    }
+
+    @Override
+    public float readFloat() {
+        return in.readFloat();
+    }
+
+    @Override
+    public double readDouble() {
+        return in.readDouble();
+    }
+
+    @Override
+    public String readLine() {
+        return in.readLine();
+    }
+
+    @Override
+    public String readUTF() {
+        return in.readUTF();
+    }
+
+    @Override
+    public long readUnsignedInt() {
+        return in.readUnsignedInt();
+    }
+
+    @Override
+    public String readString() {
+        return in.readString();
     }
 
     protected class Input extends InputStream {
         protected long mark = -1;
 
         @Override
-        public int read() throws IOException {
+        public int read() {
             return AbstractRandomAccess.this.read();
         }
 
         @Override
-        public int read(byte[] b) throws IOException {
+        public int read(byte[] b) {
             return AbstractRandomAccess.this.read(b);
         }
 
         @Override
-        public int read(byte[] b, int off, int len) throws IOException {
+        public int read(byte[] b, int off, int len) {
             return AbstractRandomAccess.this.read(b, off, len);
         }
 
         @Override
-        public long skip(long n) throws IOException {
+        public long skip(long n) {
             val ptr = tell();
             val off = Math.max(ptr + n, size());
             seek(off);
@@ -76,22 +164,18 @@ public abstract class AbstractRandomAccess implements RandomAccess {
         }
 
         @Override
-        public int available() throws IOException {
+        public int available() {
             return (int) Math.max(size() - tell(), Integer.MAX_VALUE);
         }
 
         @Override
-        public void close() throws IOException {
+        public void close() {
             AbstractRandomAccess.this.close();
         }
 
         @Override
         public void mark(int readLimit) {
-            try {
-                mark = tell();
-            } catch (IOException e) {
-                mark = -1;
-            }
+            mark = tell();
         }
 
         @Override
