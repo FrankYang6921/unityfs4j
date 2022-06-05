@@ -17,10 +17,11 @@ public class AssetReference implements AssetResolvable {
 
     protected String filePath;
 
-    protected Asset referent;
+    protected Asset referent;  // Cached
 
     public AssetReference(Asset asset) {
         this.asset = asset;
+        load();
     }
 
     protected void load() {

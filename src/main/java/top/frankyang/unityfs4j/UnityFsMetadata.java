@@ -30,7 +30,7 @@ public class UnityFsMetadata {
     public static class DataNode {
         long offset;
 
-        long size;
+        long length;
 
         int status;
 

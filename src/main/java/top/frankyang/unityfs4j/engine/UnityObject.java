@@ -1,14 +1,14 @@
 package top.frankyang.unityfs4j.engine;
 
 import top.frankyang.unityfs4j.asset.ObjectInfo;
-import top.frankyang.unityfs4j.asset.TypeTree;
+import top.frankyang.unityfs4j.asset.UnityType;
 
 import java.util.Map;
 
 public interface UnityObject {
     ObjectInfo getObjectInfo();
 
-    TypeTree getTypeTree();
+    UnityType getUnityType();
 
     Map<String, Object> getFields();
 

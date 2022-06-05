@@ -25,7 +25,7 @@ public class ObjectInfo {
 
     protected int offset;
 
-    protected int size;
+    protected int length;
 
     protected int typeId;
 
@@ -33,29 +33,30 @@ public class ObjectInfo {
 
     protected boolean destroyed;
 
-    protected TypeTree typeTree;
+    protected UnityType unityType;  // Cached
 
-    protected Object object;
+    protected Object object;  // Cached
 
     protected ObjectInfo(Asset asset) {
         this.asset = asset;
         payload = asset.getPayload();
+        load();
     }
 
-    protected UnityObject createObject(TypeTree typeTree, Map<String, Object> fields) {
-        return UnityClassManager.getInstance().createObject(this, typeTree, fields);
+    protected UnityObject createObject(UnityType unityType, Map<String, Object> fields) {
+        return UnityClassManager.getInstance().createObject(this, unityType, fields);
     }
 
-    public void load() {
-        val formatVersion = asset.formatVersion;
+    protected void load() {
+        val formatVersion = asset.getFormatVersion();
         pathId = readId();
-        offset = payload.readInt() + asset.contentOffset;
-        size = payload.readInt();
+        offset = payload.readInt() + asset.getContentOffset();
+        length = payload.readInt();
         typeId = payload.readInt();
         if (formatVersion < 17) {
             classId = payload.readShort();
         } else {
-            typeId = classId = asset.getTypeMetadata().getClassIds().get(typeId);
+            typeId = classId = asset.getUnityTypes().getClassIds().get(typeId);
         }
         if (formatVersion <= 10) {
             destroyed = payload.readShort() != 0;
@@ -68,23 +69,23 @@ public class ObjectInfo {
         }
     }
 
-    public final TypeTree getTypeTree() {
-        if (typeTree == null) {
-            typeTree = findTypeTree();
+    public final UnityType getUnityType() {
+        if (unityType == null) {
+            unityType = findTypeTree();
         }
-        return typeTree;
+        return unityType;
     }
 
-    protected TypeTree findTypeTree() {
+    protected UnityType findTypeTree() {
         if (typeId < 0) {
-            val typeTrees = asset.getTypeMetadata().getTypes();
+            val typeTrees = asset.getUnityTypes().getTypes();
             if (typeTrees.containsKey(typeId)) {
                 return typeTrees.get(typeId);
             }
             if (typeTrees.containsKey(classId)) {
                 return typeTrees.get(classId);
             }
-            return TypeMetadata.getInstance().getTypes().get(classId);
+            return UnityTypes.getInstance().getTypes().get(classId);
         }
         return asset.getTypes().get(typeId);
     }
@@ -98,88 +99,81 @@ public class ObjectInfo {
 
     protected Object readObject() {
         payload.seek(asset.getOffset() + offset);
-        return read(getTypeTree(), payload);
+        return read(getUnityType(), payload);
     }
 
-    protected Object read(TypeTree typeTree, RandomAccess buf) {
+    protected Object read(UnityType unityType, RandomAccess buf) {
         Object result = null;
         var align = false;
-        val expected = typeTree.getSize();
+        val expected = unityType.getSize();
         val ptrBefore = buf.tell();
 
-        var firstChild = typeTree.getChildren().size() > 0 ?
-            typeTree.getChildren().get(0) : new TypeTree(asset.getFormatVersion());
-        val type = typeTree.getType();
+        var firstChild = unityType.getChildren().size() > 0 ? unityType.getChildren().get(0) : UnityType.DUMMY;
+        val type = unityType.getType();
+        // Read primitive
         switch (type) {
-            case "bool":
+            case "bool":  // Boolean
                 result = buf.readBoolean();
                 break;
-            case "SInt8":
+            case "SInt8":  // Byte
                 result = buf.readByte();
                 break;
             case "UInt8":
-            case "char":
+            case "char":  // Integer
                 result = buf.readUnsignedByte();
                 break;
             case "SInt16":
-            case "short":
+            case "short":  // Short
                 result = buf.readShort();
                 break;
             case "UInt16":
-            case "unsigned short":
+            case "unsigned short":  // Integer
                 result = buf.readUnsignedShort();
                 break;
             case "SInt32":
-            case "int":
+            case "int":  // Integer
                 result = buf.readInt();
                 break;
             case "UInt32":
-            case "unsigned int":
+            case "unsigned int":  // Long
                 result = buf.readUnsignedInt();
                 break;
             case "SInt64":
-            case "UInt64":
+            case "UInt64":  // Long
                 result = buf.readLong();
                 break;
-            case "float":
+            case "float":  // Float
                 buf.align();
                 result = buf.readFloat();
                 break;
-            case "double":
+            case "double":  // Double
                 buf.align();
                 result = buf.readDouble();
                 break;
-            case "string":
-                val size = typeTree.getSize();
+            case "string":  // String
+                val size = unityType.getSize();
                 align = firstChild.isAligned();
                 result = new String(BufferUtils.read(buf, size < 0 ? buf.readInt() : size), UTF_8);
                 break;
         }
-        blk:
         if (result == null) {  // Not primitive
-            if (typeTree.isArray()) {
-                firstChild = typeTree;
+            if (unityType.isArray()) {
+                firstChild = unityType;
             }
             if (firstChild != null &&
-                firstChild.isArray()) {
+                firstChild.isArray()) {  // Read array
                 align = firstChild.isAligned();
                 result = readArray(buf.readInt(), firstChild.getChildren().get(1), buf);
-                break blk;
-            }
-            if (type.startsWith("Exposed")) {
-                val info = new ExposedObjectInfo(asset);
+            } else {  // Read normal object
+                val exposed = type.startsWith("Exposed");
                 val raw = new LinkedHashMap<String, Object>();
-                for (TypeTree child : typeTree.getChildren()) {
-                    raw.put(child.getName(), info.read(child, buf));
+                for (UnityType child : unityType.getChildren()) {
+                    raw.put(child.getName(), exposed ?
+                        readExposed(child, buf) : read(child, buf)
+                    );
                 }
-                result = createObject(typeTree, raw);
-                break blk;
+                result = createObject(unityType, raw);
             }
-            val raw = new LinkedHashMap<String, Object>();
-            for (TypeTree child : typeTree.getChildren()) {
-                raw.put(child.getName(), read(child, buf));
-            }
-            result = createObject(typeTree, raw);
         }
 
         val ptrAfter = buf.tell();
@@ -187,13 +181,21 @@ public class ObjectInfo {
         if (expected > 0 && actualSize < expected) {
             throw new ObjectFormatException(expected + " byte(s) expected, got " + actualSize);
         }
-        if (align || typeTree.isAligned()) {
+        if (align || unityType.isAligned()) {
             buf.align();
         }
         return result;
     }
 
-    protected Object readArray(int size, TypeTree elemType, RandomAccess buf) {
+    protected Object readExposed(UnityType unityType, RandomAccess buf) {
+        if ("exposedName".equals(unityType.getName())) {
+            buf.readInt();
+            return "";
+        }
+        return read(unityType, buf);
+    }
+
+    protected Object readArray(int size, UnityType elemType, RandomAccess buf) {
         Object result;
         switch (elemType.getType()) {
             case "bool":
@@ -239,6 +241,6 @@ public class ObjectInfo {
     }
 
     private long readId() {
-        return asset.longObjectId ? payload.readLong() : asset.readId();
+        return asset.isLongObjectId() ? payload.readLong() : asset.readId();
     }
 }

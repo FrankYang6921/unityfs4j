@@ -3,20 +3,20 @@ package top.frankyang.unityfs4j.engine;
 import lombok.Getter;
 import lombok.val;
 import top.frankyang.unityfs4j.asset.ObjectInfo;
-import top.frankyang.unityfs4j.asset.TypeTree;
+import top.frankyang.unityfs4j.asset.UnityType;
 
 import java.util.Map;
 
 @Getter
 public class UnityObjectImpl implements UnityObject {
-    private final TypeTree typeTree;
+    private final ObjectInfo objectInfo;
+
+    private final UnityType unityType;
 
     private final Map<String, Object> fields;
 
-    private final ObjectInfo objectInfo;
-
-    protected UnityObjectImpl(ObjectInfo objectInfo, TypeTree typeTree, Map<String, Object> fields) {
-        this.typeTree = typeTree;
+    protected UnityObjectImpl(ObjectInfo objectInfo, UnityType unityType, Map<String, Object> fields) {
+        this.unityType = unityType;
         this.fields = fields;
         this.objectInfo = objectInfo;
     }
@@ -36,6 +36,6 @@ public class UnityObjectImpl implements UnityObject {
     @Override
     public String toString() {
         val string = fields.toString();
-        return typeTree.getType() + '(' + string.substring(1, string.length() - 1) + ')';
+        return unityType.getType() + '(' + string.substring(1, string.length() - 1) + ')';
     }
 }

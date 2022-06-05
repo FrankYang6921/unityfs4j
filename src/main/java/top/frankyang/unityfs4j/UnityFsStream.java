@@ -59,8 +59,8 @@ public class UnityFsStream implements Iterable<Asset>, Closeable {
         val engineVersion = BufferUtils.getString(buffer);
 
         val size = buffer.getLong();
-        val compressedMetadataSize = buffer.getInt();
-        val uncompressedMetadataSize = buffer.getInt();
+        val compressedSize = buffer.getInt();
+        val uncompressedSize = buffer.getInt();
         val flag = buffer.getInt();
 
         return header = new UnityFsHeader(
@@ -68,8 +68,8 @@ public class UnityFsStream implements Iterable<Asset>, Closeable {
             playerVersion,
             engineVersion,
             size,
-            compressedMetadataSize,
-            uncompressedMetadataSize,
+            compressedSize,
+            uncompressedSize,
             flag
         );
     }

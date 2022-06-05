@@ -2,7 +2,7 @@ package top.frankyang.unityfs4j.engine;
 
 import lombok.val;
 import top.frankyang.unityfs4j.asset.ObjectInfo;
-import top.frankyang.unityfs4j.asset.TypeTree;
+import top.frankyang.unityfs4j.asset.UnityType;
 import top.frankyang.unityfs4j.impl.PPtr;
 import top.frankyang.unityfs4j.impl.Pair;
 import top.frankyang.unityfs4j.util.StringUtils;
@@ -33,13 +33,13 @@ public class UnityClassManager {
         registry.put(className, klass);
     }
 
-    public UnityObject createObject(ObjectInfo objectInfo, TypeTree typeTree, Map<String, Object> fields) {
-        val rawType = StringUtils.substrTo(typeTree.getType(), '<');
+    public UnityObject createObject(ObjectInfo objectInfo, UnityType unityType, Map<String, Object> fields) {
+        val rawType = StringUtils.substrTo(unityType.getType(), '<');
         if (registry.containsKey(rawType)) {
             return interceptors
-                .computeIfAbsent(registry.get(rawType), Interceptor::new).create(objectInfo, typeTree, fields);
+                .computeIfAbsent(registry.get(rawType), Interceptor::new).create(objectInfo, unityType, fields);
         }
-        return new UnityObjectImpl(objectInfo, typeTree, fields);
+        return new UnityObjectImpl(objectInfo, unityType, fields);
     }
 
     private void registerDefaults() {

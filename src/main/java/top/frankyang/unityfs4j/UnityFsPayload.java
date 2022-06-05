@@ -33,13 +33,13 @@ public class UnityFsPayload extends AbstractRandomAccess implements Iterable<Ass
 
     private final int baseOffset;
 
-    private final int actualSize;
+    private final int actualLength;
 
     protected int pointer;
 
     protected DataBlock currentBlock;
 
-    protected ByteBuffer currentBuf;
+    protected ByteBuffer currentBuffer;
 
     protected int currentBlockBaseOffset;
 
@@ -49,7 +49,7 @@ public class UnityFsPayload extends AbstractRandomAccess implements Iterable<Ass
         this.context = context;
         dataBlocks = metadata.getDataBlocks();
         baseOffset = buffer.position();
-        actualSize = dataBlocks.stream().mapToInt(DataBlock::getUncompressedSize).sum();
+        actualLength = dataBlocks.stream().mapToInt(DataBlock::getUncompressedSize).sum();
         seek(0);
     }
 
@@ -67,7 +67,7 @@ public class UnityFsPayload extends AbstractRandomAccess implements Iterable<Ass
                 realOffset += block.getUncompressedSize();
             }
             currentBlock = null;
-            currentBuf = EMPTY_BUFFER;
+            currentBuffer = EMPTY_BUFFER;
             return;
         }
         currentBlockBaseOffset = realOffset;
@@ -83,7 +83,7 @@ public class UnityFsPayload extends AbstractRandomAccess implements Iterable<Ass
             );
             blockDataMap.put(currentBlock, bytes);
         }
-        currentBuf = ByteBuffer.wrap(bytes);
+        currentBuffer = ByteBuffer.wrap(bytes);
     }
 
     protected boolean isOutOfCurrentBlock(long offset) {
@@ -100,7 +100,7 @@ public class UnityFsPayload extends AbstractRandomAccess implements Iterable<Ass
         if (isOutOfCurrentBlock(offset)) {
             seekToBlock(offset);
         }
-        currentBuf.position((int) offset - currentBlockBaseOffset);
+        currentBuffer.position((int) offset - currentBlockBaseOffset);
     }
 
     @Override
@@ -110,7 +110,7 @@ public class UnityFsPayload extends AbstractRandomAccess implements Iterable<Ass
 
     @Override
     public long size() {
-        return actualSize;
+        return actualLength;
     }
 
     @Override
@@ -118,7 +118,7 @@ public class UnityFsPayload extends AbstractRandomAccess implements Iterable<Ass
         if (isOutOfCurrentBlock(pointer)) {
             seekToBlock(pointer);
         }
-        val ret = BufferUtils.read(currentBuf);
+        val ret = BufferUtils.read(currentBuffer);
         if (ret < 0) {
             return ret;
         }
@@ -131,7 +131,7 @@ public class UnityFsPayload extends AbstractRandomAccess implements Iterable<Ass
         if (isOutOfCurrentBlock(pointer)) {
             seekToBlock(pointer);
         }
-        len = BufferUtils.read(currentBuf, b, off, len);
+        len = BufferUtils.read(currentBuffer, b, off, len);
         pointer += len;
         return len;
     }

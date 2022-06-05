@@ -22,7 +22,7 @@ public class Asset implements AssetResolvable, Iterable<ObjectInfo> {
 
     private final UnityFsContext root;
 
-    private final TypeMetadata typeMetadata = new TypeMetadata(this);
+    private final UnityTypes unityTypes = new UnityTypes(this);
 
     private final String name;
 
@@ -32,17 +32,19 @@ public class Asset implements AssetResolvable, Iterable<ObjectInfo> {
 
     private final ArrayList<AssetResolvable> refs = new ArrayList<>();
 
-    private final Map<Integer, TypeTree> types = new HashMap<>();
+    private final Map<Integer, UnityType> types = new HashMap<>();
 
     private final Map<Long, ObjectInfo> objects = new HashMap<>();
 
     protected boolean loaded;
 
+    protected boolean loading;
+
     protected boolean longObjectId;
 
-    protected int metadataSize;
+    protected int metadataLength;
 
-    protected int contentSize;
+    protected int contentLength;
 
     protected int formatVersion;
 
@@ -74,7 +76,7 @@ public class Asset implements AssetResolvable, Iterable<ObjectInfo> {
         return Collections.unmodifiableList(refs);
     }
 
-    public Map<Integer, TypeTree> getTypes() {
+    public Map<Integer, UnityType> getTypes() {
         ensureLoaded();
         return Collections.unmodifiableMap(types);
     }
@@ -89,14 +91,14 @@ public class Asset implements AssetResolvable, Iterable<ObjectInfo> {
         return longObjectId;
     }
 
-    public int getMetadataSize() {
+    public int getMetadataLength() {
         ensureLoaded();
-        return metadataSize;
+        return metadataLength;
     }
 
-    public int getContentSize() {
+    public int getContentLength() {
         ensureLoaded();
-        return contentSize;
+        return contentLength;
     }
 
     public int getFormatVersion() {
@@ -114,22 +116,32 @@ public class Asset implements AssetResolvable, Iterable<ObjectInfo> {
     }
 
     public synchronized void ensureLoaded() {
-        if (loaded) return;
+        if (loaded || loading) return;
         if (isResource()) {
             loaded = true;
             return;
         }
+        try {
+            loading = true;
+            load();
+        } finally {
+            loading = false;
+        }
+        loaded = true;
+    }
+
+    public void load() {
         payload.setBigEndian(true);
         payload.seek(offset);
 
-        metadataSize = payload.readInt();
-        contentSize = payload.readInt();
+        metadataLength = payload.readInt();
+        contentLength = payload.readInt();
         formatVersion = payload.readInt();
         contentOffset = payload.readInt();
 
         payload.setBigEndian(formatVersion <= 9 || payload.readInt() != 0);
 
-        typeMetadata.load();
+        unityTypes.load();
 
         if (formatVersion >= 7 && formatVersion <= 13) {
             longObjectId = payload.readInt() != 0;
@@ -140,9 +152,7 @@ public class Asset implements AssetResolvable, Iterable<ObjectInfo> {
             if (formatVersion >= 14) {
                 payload.align();
             }
-            val object = new ObjectInfo(this);
-            object.load();
-            register(object);
+            register(new ObjectInfo(this));
         }
 
         if (formatVersion >= 11) {
@@ -163,25 +173,21 @@ public class Asset implements AssetResolvable, Iterable<ObjectInfo> {
             val refCount = payload.readInt();
             refs.ensureCapacity(refCount);
             for (int i = 0; i < refCount; i++) {
-                val ref = new AssetReference(this);
-                ref.load();
-                refs.add(ref);
+                refs.add(new AssetReference(this));
             }
         }
 
         if (!payload.readString().isEmpty()) {  // DK
             throw new DataFormatException();
         }
-
-        loaded = true;
     }
 
     protected void register(ObjectInfo object) {
-        if (typeMetadata.getTypes().containsKey(object.getTypeId())) {
-            types.computeIfAbsent(object.getTypeId(), typeMetadata.getTypes()::get);
+        if (unityTypes.getTypes().containsKey(object.getTypeId())) {
+            types.computeIfAbsent(object.getTypeId(), unityTypes.getTypes()::get);
         } else {
             types.computeIfAbsent(object.getTypeId(), t ->
-                TypeMetadata.getInstance().getTypes().get(object.getClassId())
+                UnityTypes.getInstance().getTypes().get(object.getClassId())
             );
         }
         if (objects.containsKey(object.getPathId())) {

@@ -18,20 +18,22 @@ import java.util.List;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 @Getter
-public class TypeTree {
-    public static final String STRINGS_DAT;
+public class UnityType {
+    public static final UnityType DUMMY = new UnityType(15);
+
+    private static final String STRINGS_DAT;
 
     static {
         try {
             STRINGS_DAT = IOUtils.resourceToString("/strings.dat", StandardCharsets.US_ASCII);
         } catch (IOException e) {
-            throw new Error(e);
+            throw new AssertionError(e);
         }
     }
 
     private final int format;
 
-    private final List<TypeTree> children = new ArrayList<>();
+    private final List<UnityType> children = new ArrayList<>();
 
     protected String string;
 
@@ -49,11 +51,11 @@ public class TypeTree {
 
     protected int flag;
 
-    protected TypeTree(int format) {
+    protected UnityType(int format) {
         this.format = format;
     }
 
-    public List<TypeTree> getChildren() {
+    public List<UnityType> getChildren() {
         return Collections.unmodifiableList(children);
     }
 
@@ -76,9 +78,9 @@ public class TypeTree {
         string = new String(BufferUtils.read(payload, stringSize), UTF_8);
         payload.seek(-bodySize, Whence.POINTER);
 
-        val parents = new LinkedList<TypeTree>();
+        val parents = new LinkedList<UnityType>();
         parents.add(this);
-        TypeTree curr;
+        UnityType curr;
 
         for (int i = 0; i < nodeCount; i++) {
             val version = payload.readShort();
@@ -90,7 +92,7 @@ public class TypeTree {
                 while (parents.size() > depth) {
                     parents.removeLast();
                 }
-                curr = new TypeTree(format);
+                curr = new UnityType(format);
                 parents.getLast().children.add(curr);
                 parents.addLast(curr);
             }
