@@ -35,7 +35,7 @@ public class AssetReference implements AssetResolvable {
     @Override
     public Asset getReferent() {
         if (referent == null) {
-            referent = asset.getAsset(filePath);
+            referent = asset.resolveAsset(filePath);
         }
         return referent;
     }

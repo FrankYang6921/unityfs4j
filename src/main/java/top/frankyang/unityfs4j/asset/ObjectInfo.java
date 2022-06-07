@@ -6,12 +6,13 @@ import lombok.var;
 import top.frankyang.unityfs4j.engine.UnityClassManager;
 import top.frankyang.unityfs4j.engine.UnityObject;
 import top.frankyang.unityfs4j.exception.ObjectFormatException;
+import top.frankyang.unityfs4j.impl.StreamData;
 import top.frankyang.unityfs4j.io.RandomAccess;
 import top.frankyang.unityfs4j.util.BufferUtils;
+import top.frankyang.unityfs4j.util.StringUtils;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.stream.IntStream;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -71,12 +72,12 @@ public class ObjectInfo {
 
     public final UnityType getUnityType() {
         if (unityType == null) {
-            unityType = findTypeTree();
+            unityType = findUnityType();
         }
         return unityType;
     }
 
-    protected UnityType findTypeTree() {
+    protected UnityType findUnityType() {
         if (typeId < 0) {
             val typeTrees = asset.getUnityTypes().getTypes();
             if (typeTrees.containsKey(typeId)) {
@@ -153,7 +154,7 @@ public class ObjectInfo {
             case "string":  // String
                 val size = unityType.getSize();
                 align = firstChild.isAligned();
-                result = new String(BufferUtils.read(buf, size < 0 ? buf.readInt() : size), UTF_8);
+                result = StringUtils.bytesOrString(BufferUtils.read(buf, size < 0 ? buf.readInt() : size), UTF_8);
                 break;
         }
         if (result == null) {  // Not primitive
@@ -173,6 +174,10 @@ public class ObjectInfo {
                     );
                 }
                 result = createObject(unityType, raw);
+                if (result instanceof StreamData) {
+                    val streamedData = (StreamData) result;
+                    streamedData.setAsset(getAsset().resolveAsset(streamedData.getPath()));
+                }
             }
         }
 
@@ -235,7 +240,11 @@ public class ObjectInfo {
                 result = BufferUtils.readDoubles(buf, size);
                 break;
             default:
-                result = IntStream.range(0, size).mapToObj(i -> read(elemType, buf)).toArray();
+                Object[] array = new Object[size];
+                for (int i = 0; i < size; i++) {
+                    array[i] = read(elemType, buf);
+                }
+                result = array;
         }
         return result;
     }

@@ -15,4 +15,8 @@ public interface UnityObject {
     <T> T getField(String key);
 
     <T> T setField(String key, T value);
+
+    default String getName() {
+        return getField("m_Name");
+    }
 }

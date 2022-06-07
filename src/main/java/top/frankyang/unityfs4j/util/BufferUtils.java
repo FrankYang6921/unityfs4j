@@ -4,6 +4,7 @@ import lombok.SneakyThrows;
 import lombok.experimental.UtilityClass;
 import lombok.val;
 import org.apache.commons.io.IOUtils;
+import top.frankyang.unityfs4j.io.EndianDataInput;
 import top.frankyang.unityfs4j.io.RandomAccess;
 
 import java.io.ByteArrayOutputStream;
@@ -56,7 +57,7 @@ public class BufferUtils {
         return IOUtils.readFully(buf.asInputStream(), size);
     }
 
-    public boolean[] readBooleans(RandomAccess buf, int size) {
+    public boolean[] readBooleans(EndianDataInput buf, int size) {
         val result = new boolean[size];
         for (int i = 0; i < result.length; i++) {
             result[i] = buf.readBoolean();
@@ -64,7 +65,7 @@ public class BufferUtils {
         return result;
     }
 
-    public short[] readShorts(RandomAccess buf, int size) {
+    public short[] readShorts(EndianDataInput buf, int size) {
         val result = new short[size];
         for (int i = 0; i < result.length; i++) {
             result[i] = buf.readShort();
@@ -72,7 +73,7 @@ public class BufferUtils {
         return result;
     }
 
-    public int[] readUnsignedShorts(RandomAccess buf, int size) {
+    public int[] readUnsignedShorts(EndianDataInput buf, int size) {
         val result = new int[size];
         for (int i = 0; i < result.length; i++) {
             result[i] = buf.readUnsignedShort();
@@ -80,7 +81,7 @@ public class BufferUtils {
         return result;
     }
 
-    public int[] readInts(RandomAccess buf, int size) {
+    public int[] readInts(EndianDataInput buf, int size) {
         val result = new int[size];
         for (int i = 0; i < result.length; i++) {
             result[i] = buf.readInt();
@@ -88,7 +89,7 @@ public class BufferUtils {
         return result;
     }
 
-    public long[] readUnsignedInts(RandomAccess buf, int size) {
+    public long[] readUnsignedInts(EndianDataInput buf, int size) {
         val result = new long[size];
         for (int i = 0; i < result.length; i++) {
             result[i] = buf.readUnsignedInt();
@@ -96,7 +97,7 @@ public class BufferUtils {
         return result;
     }
 
-    public long[] readLongs(RandomAccess buf, int size) {
+    public long[] readLongs(EndianDataInput buf, int size) {
         val result = new long[size];
         for (int i = 0; i < result.length; i++) {
             result[i] = buf.readLong();
@@ -104,7 +105,7 @@ public class BufferUtils {
         return result;
     }
 
-    public float[] readFloats(RandomAccess buf, int size) {
+    public float[] readFloats(EndianDataInput buf, int size) {
         val result = new float[size];
         for (int i = 0; i < result.length; i++) {
             result[i] = buf.readFloat();
@@ -112,7 +113,7 @@ public class BufferUtils {
         return result;
     }
 
-    public double[] readDoubles(RandomAccess buf, int size) {
+    public double[] readDoubles(EndianDataInput buf, int size) {
         val result = new double[size];
         for (int i = 0; i < result.length; i++) {
             result[i] = buf.readDouble();

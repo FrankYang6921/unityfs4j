@@ -3,8 +3,7 @@ package top.frankyang.unityfs4j.engine;
 import lombok.val;
 import top.frankyang.unityfs4j.asset.ObjectInfo;
 import top.frankyang.unityfs4j.asset.UnityType;
-import top.frankyang.unityfs4j.impl.PPtr;
-import top.frankyang.unityfs4j.impl.Pair;
+import top.frankyang.unityfs4j.impl.*;
 import top.frankyang.unityfs4j.util.StringUtils;
 
 import java.util.HashMap;
@@ -33,6 +32,12 @@ public class UnityClassManager {
         registry.put(className, klass);
     }
 
+    public void register(Class<?>... classes) {
+        for (Class<?> klass : classes) {
+            register(klass);
+        }
+    }
+
     public UnityObject createObject(ObjectInfo objectInfo, UnityType unityType, Map<String, Object> fields) {
         val rawType = StringUtils.substrTo(unityType.getType(), '<');
         if (registry.containsKey(rawType)) {
@@ -43,8 +48,15 @@ public class UnityClassManager {
     }
 
     private void registerDefaults() {
-        register(PPtr.class);
-        register(Pair.class);
+        register(
+            PPtr.class,
+            Pair.class,
+            StreamedResource.class,
+            StreamingInfo.class,
+            TextAsset.class,
+            Texture2D.class,
+            Vector.class
+        );
     }
 
     private static class UnityClassManagerSingleton {

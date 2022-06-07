@@ -11,9 +11,7 @@ import top.frankyang.unityfs4j.exception.ObjectRegistryException;
 import top.frankyang.unityfs4j.io.RandomAccess;
 import top.frankyang.unityfs4j.util.LongIntegerPair;
 
-import java.io.IOException;
 import java.net.URI;
-import java.nio.file.Path;
 import java.util.*;
 
 @Getter
@@ -49,10 +47,6 @@ public class Asset implements AssetResolvable, Iterable<ObjectInfo> {
     protected int formatVersion;
 
     protected int contentOffset;
-
-    public Asset(Path path, UnityFsContext root) throws IOException {
-        this(RandomAccess.of(path), root, path.getFileName().toString(), 0);
-    }
 
     public Asset(UnityFsPayload payload, DataNode node) {
         this(payload, payload.getContext(), node.getName(), node.getOffset());
@@ -205,15 +199,15 @@ public class Asset implements AssetResolvable, Iterable<ObjectInfo> {
     }
 
     @SneakyThrows
-    protected Asset getAsset(String file) {
+    protected Asset resolveAsset(String path) {
         if (root == null) {
             return null;
         }
-        val uri = new URI(file);
-        if (file.contains(":")) {
+        val uri = new URI(path);
+        if (path.contains(":")) {
             return root.getAssetByUri(uri);
         }
-        return root.getAssetByName(file);
+        return root.getAssetByName(path);
     }
 
     @Override
