@@ -9,3 +9,4 @@ ExtractionManager mgr = ExtractionManager.builder()
 context.findStreams(p -> p.toString().endsWith(".ab"));
 mgr.tryExtractAll(context, Path.of("~/extract"));
 ```
+Inspired by [UnityPack](https://github.com/HearthSim/UnityPack), but at most ten times as fast ;)
