@@ -1,7 +1,6 @@
 package top.frankyang.unityfs4j;
 
 import lombok.Getter;
-import lombok.val;
 import top.frankyang.unityfs4j.UnityFsMetadata.DataBlock;
 import top.frankyang.unityfs4j.UnityFsMetadata.DataNode;
 import top.frankyang.unityfs4j.asset.Asset;
@@ -14,8 +13,8 @@ import top.frankyang.unityfs4j.util.CompressionUtils;
 import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -29,7 +28,7 @@ public class UnityFsStream implements Iterable<Asset>, Closeable {
 
     private final FileChannel channel;
 
-    private final MappedByteBuffer buffer;
+    private final ByteBuffer buffer;
 
     protected UnityFsHeader header;
 
@@ -46,98 +45,78 @@ public class UnityFsStream implements Iterable<Asset>, Closeable {
         buffer.order(ByteOrder.BIG_ENDIAN);
     }
 
-    public UnityFsHeader readHeader() {
-        val magicWord = BufferUtils.getString(buffer);
+    public UnityFsPayload load() {
+        var magicWord = BufferUtils.getString(buffer);
         if (!magicWord.equals(MAGIC_WORD)) {
             throw new DataFormatException(
-                "Illegal magic word: '" + MAGIC_WORD + "' expected, got '" + magicWord + '\''
+                "illegal magic word: '" + MAGIC_WORD + "' expected, got '" + magicWord + '\''
             );
         }
 
-        val fileVersion = buffer.getInt();
-        val playerVersion = BufferUtils.getString(buffer);
-        val engineVersion = BufferUtils.getString(buffer);
+        var fileVersion = buffer.getInt();
+        var playerVersion = BufferUtils.getString(buffer);
+        var engineVersion = BufferUtils.getString(buffer);
 
-        val size = buffer.getLong();
-        val compressedSize = buffer.getInt();
-        val uncompressedSize = buffer.getInt();
-        val flag = buffer.getInt();
+        var length = buffer.getLong();
+        var zippedSize = buffer.getInt();
+        var actualSize = buffer.getInt();
+        var flag = buffer.getInt();
 
-        return header = new UnityFsHeader(
+        header = new UnityFsHeader(
             fileVersion,
             playerVersion,
             engineVersion,
-            size,
-            compressedSize,
-            uncompressedSize,
+            length,
+            zippedSize,
+            actualSize,
             flag
         );
-    }
-
-    public UnityFsMetadata readMetadata() {
-        if (header == null) {
-            throw new NotYetReadException("Header must be read before reading metadata");
-        }
 
         int pointer = 0;
-        if (header.isEOFMetadata()) {
+        if (header.eofMetadata()) {
             pointer = buffer.position();
-            BufferUtils.seekTail(buffer, header.getCompressedSize());
+            BufferUtils.seekTail(buffer, header.zippedSize());
         }
-        byte[] bytes = CompressionUtils.decompress(
+        var bytes = CompressionUtils.decompress(
             BufferUtils.asInputStream(buffer),
-            header.getUncompressedSize(),
-            header.getCompressionType()
+            header.actualSize(),
+            header.compression()
         );
-        if (header.isEOFMetadata()) {
+        if (header.eofMetadata()) {
             buffer.position(pointer);
         }
 
-        val in = new EndianDataInputStream(new ByteArrayInputStream(bytes));
-        val uuid = new UUID(in.readLong(), in.readLong());
+        var in = new EndianDataInputStream(new ByteArrayInputStream(bytes));
+        var uuid = new UUID(in.readLong(), in.readLong());
 
-        val blockCount = in.readInt();
-        val blocks = new ArrayList<DataBlock>(blockCount);  // Initial capacity given, avoid useless allocation
+        var blockCount = in.readInt();
+        var blocks = new ArrayList<DataBlock>(blockCount);
         for (int i = 0; i < blockCount; i++) {
-            val uncompressedSize = in.readInt();
-            val compressedSize = in.readInt();
-            val flag = in.readShort();
             blocks.add(new DataBlock(
-                uncompressedSize, compressedSize, flag
+                in.readInt(), in.readInt(), in.readShort()
             ));
         }
 
-        val nodeCount = in.readInt();
-        val nodes = new ArrayList<DataNode>(nodeCount);  // Initial capacity given, avoid useless allocation
+        var nodeCount = in.readInt();
+        var nodes = new ArrayList<DataNode>(nodeCount);
         for (int i = 0; i < nodeCount; i++) {
-            val offset = in.readLong();
-            val size = in.readLong();
-            val status = in.readInt();
-            val name = in.readString();
+            var offset = in.readLong();
+            var size = in.readLong();
+            var status = in.readInt();
+            var name = in.readString();
             nodes.add(new DataNode(
                 offset, size, status, name
             ));
         }
 
-        name = nodes.get(0).getName();
-        return metadata = new UnityFsMetadata(
-            uuid,
-            blocks,
-            nodes
-        );
-    }
-
-    public UnityFsPayload readPayload() {
-        if (metadata == null) {
-            throw new NotYetReadException("Metadata must be read before reading payload");
-        }
-        return payload = new UnityFsPayload(buffer, metadata, context);
+        name = nodes.get(0).name();
+        return payload = new UnityFsPayload(buffer, metadata = new UnityFsMetadata(uuid, blocks, nodes), context);
     }
 
     @Override
     public Iterator<Asset> iterator() {
         if (payload == null) {
-            throw new NotYetReadException("Payload must be read before iterating assets");
+            throw new NotYetReadException("payload must be loaded before iterating assets");
         }
         return payload.iterator();
     }

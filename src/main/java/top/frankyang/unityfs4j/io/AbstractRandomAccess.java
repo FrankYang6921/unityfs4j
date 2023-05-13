@@ -1,6 +1,6 @@
 package top.frankyang.unityfs4j.io;
 
-import lombok.val;
+
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -13,12 +13,13 @@ public abstract class AbstractRandomAccess implements RandomAccess {
     }
 
     @Override
-    public void align() {
-        val ptr = tell();
-        val off = (ptr + 3) & -4;
+    public RandomAccess align() {
+        var ptr = tell();
+        var off = (ptr + 3) & -4;
         if (off > ptr) {
             seek(off - ptr, Whence.POINTER);
         }
+        return this;
     }
 
     @Override
@@ -157,8 +158,8 @@ public abstract class AbstractRandomAccess implements RandomAccess {
 
         @Override
         public long skip(long n) {
-            val ptr = tell();
-            val off = Math.max(ptr + n, size());
+            var ptr = tell();
+            var off = Math.max(ptr + n, size());
             seek(off);
             return off - ptr;
         }

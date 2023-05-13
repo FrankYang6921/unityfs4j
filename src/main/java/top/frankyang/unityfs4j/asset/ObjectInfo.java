@@ -1,8 +1,6 @@
 package top.frankyang.unityfs4j.asset;
 
 import lombok.Getter;
-import lombok.val;
-import lombok.var;
 import top.frankyang.unityfs4j.engine.UnityClassManager;
 import top.frankyang.unityfs4j.engine.UnityObject;
 import top.frankyang.unityfs4j.exception.ObjectFormatException;
@@ -49,7 +47,7 @@ public class ObjectInfo {
     }
 
     protected void load() {
-        val formatVersion = asset.getFormatVersion();
+        var formatVersion = asset.getFormatVersion();
         pathId = readId();
         offset = payload.readInt() + asset.getContentOffset();
         length = payload.readInt();
@@ -79,7 +77,7 @@ public class ObjectInfo {
 
     protected UnityType findUnityType() {
         if (typeId < 0) {
-            val typeTrees = asset.getUnityTypes().getTypes();
+            var typeTrees = asset.getUnityTypes().getTypes();
             if (typeTrees.containsKey(typeId)) {
                 return typeTrees.get(typeId);
             }
@@ -104,60 +102,36 @@ public class ObjectInfo {
     }
 
     protected Object read(UnityType unityType, RandomAccess buf) {
-        Object result = null;
+        Object result;
         var align = false;
-        val expected = unityType.getSize();
-        val ptrBefore = buf.tell();
+        var expected = unityType.getSize();
+        var ptrBefore = buf.tell();
 
-        var firstChild = unityType.getChildren().size() > 0 ? unityType.getChildren().get(0) : UnityType.DUMMY;
-        val type = unityType.getType();
+        var firstChild =
+            unityType.getChildren().size() > 0 ?
+            unityType.getChildren().get(0) :
+                UnityType.DUMMY;
+        var type = unityType.getType();
         // Read primitive
-        switch (type) {
-            case "bool":  // Boolean
-                result = buf.readBoolean();
-                break;
-            case "SInt8":  // Byte
-                result = buf.readByte();
-                break;
-            case "UInt8":
-            case "char":  // Integer
-                result = buf.readUnsignedByte();
-                break;
-            case "SInt16":
-            case "short":  // Short
-                result = buf.readShort();
-                break;
-            case "UInt16":
-            case "unsigned short":  // Integer
-                result = buf.readUnsignedShort();
-                break;
-            case "SInt32":
-            case "int":  // Integer
-                result = buf.readInt();
-                break;
-            case "UInt32":
-            case "unsigned int":  // Long
-                result = buf.readUnsignedInt();
-                break;
-            case "SInt64":
-            case "UInt64":  // Long
-                result = buf.readLong();
-                break;
-            case "float":  // Float
-                buf.align();
-                result = buf.readFloat();
-                break;
-            case "double":  // Double
-                buf.align();
-                result = buf.readDouble();
-                break;
-            case "string":  // String
-                val size = unityType.getSize();
+        result = switch (type) {
+            case "bool" -> buf.readBoolean();
+            case "SInt8" -> buf.readByte();
+            case "UInt8", "char" -> buf.readUnsignedByte();
+            case "SInt16", "short" -> buf.readShort();
+            case "UInt16", "unsigned short" -> buf.readUnsignedShort();
+            case "SInt32", "int" -> buf.readInt();
+            case "UInt32", "unsigned int" -> buf.readUnsignedInt();
+            case "SInt64", "UInt64" -> buf.readLong();
+            case "float" -> buf.align().readFloat();
+            case "double" -> buf.align().readDouble();
+            case "string" -> {
+                var size = unityType.getSize();
                 align = firstChild.isAligned();
-                result = StringUtils.bytesOrString(BufferUtils.read(buf, size < 0 ? buf.readInt() : size), UTF_8);
-                break;
-        }
-        if (result == null) {  // Not primitive
+                yield StringUtils.bytesOrString(BufferUtils.read(buf, size < 0 ? buf.readInt() : size), UTF_8);
+            }
+            default -> null;
+        };
+        if (result == null) {  // Non-primitive
             if (unityType.isArray()) {
                 firstChild = unityType;
             }
@@ -166,23 +140,22 @@ public class ObjectInfo {
                 align = firstChild.isAligned();
                 result = readArray(buf.readInt(), firstChild.getChildren().get(1), buf);
             } else {  // Read normal object
-                val exposed = type.startsWith("Exposed");
-                val raw = new LinkedHashMap<String, Object>();
+                var exposed = type.startsWith("Exposed");
+                var raw = new LinkedHashMap<String, Object>();
                 for (UnityType child : unityType.getChildren()) {
                     raw.put(child.getName(), exposed ?
                         readExposed(child, buf) : read(child, buf)
                     );
                 }
                 result = createObject(unityType, raw);
-                if (result instanceof StreamData) {
-                    val streamedData = (StreamData) result;
-                    streamedData.setAsset(getAsset().resolveAsset(streamedData.getPath()));
+                if (result instanceof StreamData sd) {
+                    sd.setAsset(getAsset().resolveAsset(sd.getPath()));
                 }
             }
         }
 
-        val ptrAfter = buf.tell();
-        val actualSize = ptrAfter - ptrBefore;
+        var ptrAfter = buf.tell();
+        var actualSize = ptrAfter - ptrBefore;
         if (expected > 0 && actualSize < expected) {
             throw new ObjectFormatException(expected + " byte(s) expected, got " + actualSize);
         }
@@ -201,52 +174,24 @@ public class ObjectInfo {
     }
 
     protected Object readArray(int size, UnityType elemType, RandomAccess buf) {
-        Object result;
-        switch (elemType.getType()) {
-            case "bool":
-                result = BufferUtils.readBooleans(buf, size);
-                break;
-            case "char":
-            case "SInt8":
-            case "UInt8":
-                result = BufferUtils.read(buf, size);
-                break;
-            case "SInt16":
-            case "short":
-                result = BufferUtils.readShorts(buf, size);
-                break;
-            case "UInt16":
-            case "unsigned short":
-                result = BufferUtils.readUnsignedShorts(buf, size);
-                break;
-            case "SInt32":
-            case "int":
-                result = BufferUtils.readInts(buf, size);
-                break;
-            case "UInt32":
-            case "unsigned int":
-                result = BufferUtils.readUnsignedInts(buf, size);
-                break;
-            case "SInt64":
-            case "UInt64":
-                result = BufferUtils.readLongs(buf, size);
-                break;
-            case "float":
-                buf.align();
-                result = BufferUtils.readFloats(buf, size);
-                break;
-            case "double":
-                buf.align();
-                result = BufferUtils.readDoubles(buf, size);
-                break;
-            default:
+        return switch (elemType.getType()) {
+            case "bool" ->  BufferUtils.readBooleans(buf, size);
+            case "char", "SInt8", "UInt8" ->  BufferUtils.read(buf, size);
+            case "SInt16", "short" ->  BufferUtils.readShorts(buf, size);
+            case "UInt16", "unsigned short" ->  BufferUtils.readUnsignedShorts(buf, size);
+            case "SInt32", "int" ->  BufferUtils.readInts(buf, size);
+            case "UInt32", "unsigned int" ->  BufferUtils.readUnsignedInts(buf, size);
+            case "SInt64", "UInt64" ->  BufferUtils.readLongs(buf, size);
+            case "float" -> BufferUtils.readFloats(buf.align(), size);
+            case "double" -> BufferUtils.readDoubles(buf.align(), size);
+            default -> {
                 Object[] array = new Object[size];
                 for (int i = 0; i < size; i++) {
                     array[i] = read(elemType, buf);
                 }
-                result = array;
-        }
-        return result;
+                yield array;
+            }
+        };
     }
 
     private long readId() {

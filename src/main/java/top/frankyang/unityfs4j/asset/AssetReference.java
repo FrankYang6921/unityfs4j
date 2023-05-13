@@ -1,7 +1,7 @@
 package top.frankyang.unityfs4j.asset;
 
 import lombok.Getter;
-import lombok.val;
+
 
 import java.util.UUID;
 
@@ -25,7 +25,7 @@ public class AssetReference implements AssetResolvable {
     }
 
     protected void load() {
-        val payload = asset.getPayload();
+        var payload = asset.getPayload();
         assetPath = payload.readString();
         uuid = payload.readUuid();
         type = payload.readInt();

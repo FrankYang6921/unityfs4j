@@ -2,12 +2,13 @@ package top.frankyang.unityfs4j.asset;
 
 import lombok.Getter;
 import lombok.SneakyThrows;
-import lombok.val;
+
 import top.frankyang.unityfs4j.UnityFsContext;
 import top.frankyang.unityfs4j.UnityFsMetadata.DataNode;
 import top.frankyang.unityfs4j.UnityFsPayload;
 import top.frankyang.unityfs4j.exception.DataFormatException;
 import top.frankyang.unityfs4j.exception.ObjectRegistryException;
+import top.frankyang.unityfs4j.exception.UnresolvedAssetException;
 import top.frankyang.unityfs4j.io.RandomAccess;
 import top.frankyang.unityfs4j.util.LongIntegerPair;
 
@@ -16,23 +17,23 @@ import java.util.*;
 
 @Getter
 public class Asset implements AssetResolvable, Iterable<ObjectInfo> {
-    private final RandomAccess payload;
+    protected final ArrayList<LongIntegerPair> adds = new ArrayList<>();
 
-    private final UnityFsContext root;
+    protected final ArrayList<AssetResolvable> refs = new ArrayList<>();
+
+    protected final Map<Integer, UnityType> types = new HashMap<>();
+
+    protected final Map<Long, ObjectInfo> objects = new LinkedHashMap<>();
+
+    private final UnityFsPayload payload;
+
+    private final UnityFsContext context;
 
     private final UnityTypes unityTypes = new UnityTypes(this);
 
     private final String name;
 
     private final long offset;
-
-    private final ArrayList<LongIntegerPair> adds = new ArrayList<>();
-
-    private final ArrayList<AssetResolvable> refs = new ArrayList<>();
-
-    private final Map<Integer, UnityType> types = new HashMap<>();
-
-    private final Map<Long, ObjectInfo> objects = new HashMap<>();
 
     protected boolean loaded;
 
@@ -49,12 +50,12 @@ public class Asset implements AssetResolvable, Iterable<ObjectInfo> {
     protected int contentOffset;
 
     public Asset(UnityFsPayload payload, DataNode node) {
-        this(payload, payload.getContext(), node.getName(), node.getOffset());
+        this(payload, payload.getContext(), node.name(), node.offset());
     }
 
-    protected Asset(RandomAccess payload, UnityFsContext root, String name, long offset) {
+    protected Asset(UnityFsPayload payload, UnityFsContext context, String name, long offset) {
         this.payload = payload;
-        this.root = root;
+        this.context = context;
         this.name = name;
         this.offset = offset;
         refs.add(this);
@@ -141,7 +142,7 @@ public class Asset implements AssetResolvable, Iterable<ObjectInfo> {
             longObjectId = payload.readInt() != 0;
         }
 
-        val objectCount = payload.readInt();
+        var objectCount = payload.readInt();
         for (int i = 0; i < objectCount; i++) {
             if (formatVersion >= 14) {
                 payload.align();
@@ -150,13 +151,13 @@ public class Asset implements AssetResolvable, Iterable<ObjectInfo> {
         }
 
         if (formatVersion >= 11) {
-            val addCount = payload.readInt();
+            var addCount = payload.readInt();
             adds.ensureCapacity(addCount);
             for (int i = 0; i < addCount; i++) {
                 if (formatVersion >= 14) {
                     payload.align();
                 }
-                val add = LongIntegerPair.of(
+                var add = new LongIntegerPair(
                     readId(), payload.readInt()
                 );
                 adds.add(add);
@@ -164,7 +165,7 @@ public class Asset implements AssetResolvable, Iterable<ObjectInfo> {
         }
 
         if (formatVersion >= 6) {
-            val refCount = payload.readInt();
+            var refCount = payload.readInt();
             refs.ensureCapacity(refCount);
             for (int i = 0; i < refCount; i++) {
                 refs.add(new AssetReference(this));
@@ -200,14 +201,14 @@ public class Asset implements AssetResolvable, Iterable<ObjectInfo> {
 
     @SneakyThrows
     protected Asset resolveAsset(String path) {
-        if (root == null) {
-            return null;
+        if (context == null) {
+            throw new UnresolvedAssetException(path);
         }
-        val uri = new URI(path);
+        var uri = new URI(path);
         if (path.contains(":")) {
-            return root.getAssetByUri(uri);
+            return context.getAssetByUri(uri);
         }
-        return root.getAssetByName(path);
+        return context.getAssetByName(path);
     }
 
     @Override

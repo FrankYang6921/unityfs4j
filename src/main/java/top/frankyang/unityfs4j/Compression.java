@@ -1,6 +1,6 @@
 package top.frankyang.unityfs4j;
 
-public enum CompressionType {
+public enum Compression {
     NONE,
     LZMA,
     LZ4,

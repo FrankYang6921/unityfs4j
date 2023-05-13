@@ -1,28 +1,19 @@
 package top.frankyang.unityfs4j;
 
-import lombok.Value;
-
-@Value
-public class UnityFsHeader {
-    int fileVersion;
-
-    String playerVersion;
-
-    String engineVersion;
-
-    long size;
-
-    int compressedSize;
-
-    int uncompressedSize;
-
-    int flag;
-
-    public CompressionType getCompressionType() {
-        return CompressionType.values()[flag & 0x3f];
+public record UnityFsHeader(
+    int fileVersion,
+    String playerVersion,
+    String engineVersion,
+    long length,
+    int zippedSize,
+    int actualSize,
+    int flag
+) {
+    public Compression compression() {
+        return Compression.values()[flag & 0x3f];
     }
 
-    public boolean isEOFMetadata() {
+    public boolean eofMetadata() {
         return (flag & 0x80) > 0;
     }
 }

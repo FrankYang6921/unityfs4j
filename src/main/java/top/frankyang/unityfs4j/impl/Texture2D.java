@@ -1,6 +1,6 @@
 package top.frankyang.unityfs4j.impl;
 
-import lombok.var;
+
 import top.frankyang.unityfs4j.engine.UnityClass;
 import top.frankyang.unityfs4j.engine.UnityField;
 import top.frankyang.unityfs4j.engine.UnityObject;

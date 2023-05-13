@@ -19,7 +19,6 @@ public class TextAssetExtractor implements Extractor<TextAsset> {
 
     @Override
     public void accept(TextAsset textAsset, Path path) throws IOException {
-        Files.createDirectories(path);
         Files.write(path.resolve(textAsset.getName()), StringUtils.bytesOrString(textAsset.getScript(), UTF_8));
     }
 }

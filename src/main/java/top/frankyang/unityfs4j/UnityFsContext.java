@@ -1,7 +1,7 @@
 package top.frankyang.unityfs4j;
 
 import lombok.Getter;
-import lombok.val;
+import lombok.SneakyThrows;
 import org.apache.commons.io.IOUtils;
 import top.frankyang.unityfs4j.asset.Asset;
 import top.frankyang.unityfs4j.exception.UnresolvedAssetException;
@@ -14,16 +14,20 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 @Getter
 public class UnityFsContext implements Closeable {
-    private final Map<Path, UnityFsStream> pathStreamMap = new HashMap<>();
+    private final Map<Path, UnityFsStream> pathStreamMap = new ConcurrentHashMap<>();
 
-    private final Map<String, UnityFsStream> nameStreamMap = new HashMap<>();
+    private final Map<String, UnityFsStream> nameStreamMap = new ConcurrentHashMap<>();
 
-    private final Map<String, Asset> assets = new HashMap<>();
+    private final Map<String, Asset> assets = new ConcurrentHashMap<>();
 
     private final Path rootPath;
 
@@ -52,21 +56,37 @@ public class UnityFsContext implements Closeable {
         return Collections.unmodifiableMap(assets);
     }
 
+    public Set<UnityFsStream> findStreams(Predicate<Path> predicate) throws IOException {
+        return Files.walk(rootPath)
+            .filter(Files::isRegularFile)
+            .filter(predicate).map(this::getStream0)
+            .collect(Collectors.toUnmodifiableSet());
+    }
+
+    @SneakyThrows
+    private UnityFsStream getStream0(Path path) {
+        return getStream(path);
+    }
+
     public UnityFsStream getStream(Path path) throws IOException {
         ensureOpen();
         if (!path.isAbsolute()) {
             path = rootPath.resolve(path);
         }
-        if (pathStreamMap.containsKey(path)) {
-            return pathStreamMap.get(path);
+        var ret = pathStreamMap.get(path);  // act-then-check
+        if (ret != null) return ret;
+        ret = new UnityFsStream(FileChannel.open(path), this);
+        ret.load();
+        var name = ret.getName().toLowerCase();
+        UnityFsStream s;
+        if ((s = pathStreamMap.putIfAbsent(path, ret)) != null) {  // Someone else already put one concurrently
+            ret.close();
+            return s;  // Let him do the assets
         }
-        val ret = new UnityFsStream(FileChannel.open(path), this);
-        ret.readHeader();
-        ret.readMetadata();
-        ret.readPayload();
-        val name = ret.getName().toLowerCase();
-        pathStreamMap.put(path, ret);
-        nameStreamMap.put(name, ret);
+        if ((s = nameStreamMap.putIfAbsent(name, ret)) != null) {  // Someone else already put one concurrently
+            ret.close();
+            return s;  // Let him do the assets
+        }
         for (Asset asset : ret.getPayload()) {
             assets.put(asset.getName().toLowerCase(), asset);
         }
@@ -76,10 +96,11 @@ public class UnityFsContext implements Closeable {
     public Asset getAssetByName(String name) {
         ensureOpen();
         name = name.toLowerCase();
-        if (!assets.containsKey(name)) {
-            throw new UnresolvedAssetException(name);
+        var asset = assets.get(name);  // act-then-check
+        if (asset != null) {
+            return asset;
         }
-        return assets.get(name);
+        throw new UnresolvedAssetException(name);
     }
 
     public Asset getAssetByUri(URI uri) {
@@ -87,14 +108,14 @@ public class UnityFsContext implements Closeable {
         if (!"archive".equals(uri.getScheme())) {
             throw new UnresolvedAssetException(uri.toString());
         }
-        val parts = uri.getPath().substring(1).toLowerCase().split("/");
-        val streamName = parts[0];
-        val assetName = parts[1];
-        if (!nameStreamMap.containsKey(streamName)) {
+        var parts = uri.getPath().substring(1).toLowerCase().split("/");
+        var streamName = parts[0];
+        var assetName = parts[1];
+        var stream = nameStreamMap.get(streamName);  // act-then-check
+        if (stream == null) {
             throw new UnresolvedAssetException(uri.toString());
         }
-        val stream = nameStreamMap.get(streamName);
-        for (Asset asset : stream.getPayload()) {
+        for (Asset asset : stream) {
             if (assetName.equalsIgnoreCase(asset.getName())) {
                 return asset;
             }
@@ -109,7 +130,7 @@ public class UnityFsContext implements Closeable {
     @Override
     public void close() {
         closed = true;
-        for (val stream : nameStreamMap.values()) {
+        for (var stream : nameStreamMap.values()) {
             IOUtils.closeQuietly(stream);
         }
     }

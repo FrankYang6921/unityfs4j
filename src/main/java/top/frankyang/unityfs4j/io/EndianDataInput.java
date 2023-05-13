@@ -1,11 +1,14 @@
 package top.frankyang.unityfs4j.io;
 
 import lombok.SneakyThrows;
-import lombok.val;
+
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataInput;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
+
+import static java.nio.charset.StandardCharsets.*;
 
 public interface EndianDataInput extends DataInput {
     void setBigEndian(boolean bigEndian);
@@ -61,12 +64,12 @@ public interface EndianDataInput extends DataInput {
 
     @SneakyThrows
     default String readString() {
-        val buf = new ByteArrayOutputStream();
+        var buf = new ByteArrayOutputStream();
         int b;
         while ((b = readUnsignedByte()) != 0) {
             buf.write(b);
         }
-        return buf.toString("UTF-8");
+        return buf.toString(UTF_8);
     }
 
     default UUID readUuid() {

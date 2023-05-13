@@ -1,6 +1,6 @@
 package top.frankyang.unityfs4j.engine;
 
-import lombok.val;
+
 import top.frankyang.unityfs4j.asset.ObjectInfo;
 import top.frankyang.unityfs4j.asset.UnityType;
 import top.frankyang.unityfs4j.impl.*;
@@ -13,22 +13,22 @@ import java.util.concurrent.ConcurrentHashMap;
 public class UnityClassManager {
     private final Map<String, Class<?>> registry = new HashMap<>();
 
-    private final Map<Class<?>, Interceptor> interceptors = new ConcurrentHashMap<>();
+    private final Map<Class<?>, UnityClassProxy> proxyMap = new ConcurrentHashMap<>();
 
     private UnityClassManager() {
         registerDefaults();
     }
 
     public static UnityClassManager getInstance() {
-        return UnityClassManagerSingleton.INSTANCE;
+        return Holder.INSTANCE;
     }
 
     public void register(Class<?> klass) {
-        val annotation = klass.getAnnotation(UnityClass.class);
+        var annotation = klass.getAnnotation(UnityClass.class);
         if (annotation == null || !klass.isInterface() || !UnityObject.class.isAssignableFrom(klass)) {
             throw new IllegalArgumentException(klass.toString());
         }
-        val className = annotation.value().isEmpty() ? klass.getSimpleName() : annotation.value();
+        var className = annotation.value().isEmpty() ? klass.getSimpleName() : annotation.value();
         registry.put(className, klass);
     }
 
@@ -39,11 +39,13 @@ public class UnityClassManager {
     }
 
     public UnityObject createObject(ObjectInfo objectInfo, UnityType unityType, Map<String, Object> fields) {
-        val rawType = StringUtils.substrTo(unityType.getType(), '<');
+        var rawType = StringUtils.substrTo(unityType.getType(), '<');  // let's ignore generics
         if (registry.containsKey(rawType)) {
-            return interceptors
-                .computeIfAbsent(registry.get(rawType), Interceptor::new).create(objectInfo, unityType, fields);
+            return proxyMap
+                .computeIfAbsent(registry.get(rawType), UnityClassProxy::new)
+                .createObject(objectInfo, unityType, fields);
         }
+        // no class for it, just return a plain object
         return new UnityObjectImpl(objectInfo, unityType, fields);
     }
 
@@ -59,7 +61,7 @@ public class UnityClassManager {
         );
     }
 
-    private static class UnityClassManagerSingleton {
+    private static class Holder {
         static final UnityClassManager INSTANCE = new UnityClassManager();
     }
 }

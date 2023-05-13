@@ -2,10 +2,13 @@ package top.frankyang.unityfs4j.io;
 
 import lombok.Setter;
 import lombok.SneakyThrows;
-import lombok.val;
+
 import org.apache.commons.io.IOUtils;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
+
+import static java.nio.charset.StandardCharsets.*;
 
 public class EndianDataInputStream extends FilterInputStream implements EndianDataInput {
     private final byte[] readBuffer = new byte[8];
@@ -145,12 +148,12 @@ public class EndianDataInputStream extends FilterInputStream implements EndianDa
     @SneakyThrows
     @Override
     public String readLine() {
-        val buf = new ByteArrayOutputStream();
+        var buf = new ByteArrayOutputStream();
         int b;
         while ((b = readUnsignedByte()) != '\n') {
             buf.write(b);
         }
-        return buf.toString("UTF-8").replaceAll("\r$", "");
+        return buf.toString(UTF_8).replaceAll("\r$", "");
     }
 
     @SneakyThrows

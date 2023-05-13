@@ -1,7 +1,7 @@
 package top.frankyang.unityfs4j.engine;
 
 import lombok.Getter;
-import lombok.val;
+
 import top.frankyang.unityfs4j.asset.ObjectInfo;
 import top.frankyang.unityfs4j.asset.UnityType;
 
@@ -35,7 +35,7 @@ public class UnityObjectImpl implements UnityObject {
 
     @Override
     public String toString() {
-        val string = fields.toString();
+        var string = fields.toString();
         return unityType.getType() + '(' + string.substring(1, string.length() - 1) + ')';
     }
 }

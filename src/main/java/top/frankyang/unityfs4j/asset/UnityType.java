@@ -1,7 +1,7 @@
 package top.frankyang.unityfs4j.asset;
 
 import lombok.Getter;
-import lombok.val;
+
 import org.apache.commons.io.IOUtils;
 import top.frankyang.unityfs4j.io.RandomAccess;
 import top.frankyang.unityfs4j.io.Whence;
@@ -9,12 +9,12 @@ import top.frankyang.unityfs4j.util.BufferUtils;
 import top.frankyang.unityfs4j.util.StringUtils;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 
+import static java.nio.charset.StandardCharsets.US_ASCII;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 @Getter
@@ -25,15 +25,15 @@ public class UnityType {
 
     static {
         try {
-            STRINGS_DAT = IOUtils.resourceToString("/strings.dat", StandardCharsets.US_ASCII);
+            STRINGS_DAT = IOUtils.resourceToString("/strings.dat", US_ASCII);
         } catch (IOException e) {
             throw new AssertionError(e);
         }
     }
 
-    private final int format;
+    protected final List<UnityType> children = new ArrayList<>();
 
-    private final List<UnityType> children = new ArrayList<>();
+    private final int format;
 
     protected String string;
 
@@ -68,23 +68,23 @@ public class UnityType {
     }
 
     protected void loadBlob(RandomAccess payload) {
-        val nodeCount = payload.readInt();
-        val stringSize = payload.readInt();
-        val nodeSize = format >= 19 ? 32 : 24;
-        val dataSize = nodeCount * nodeSize;
-        val bodySize = dataSize + stringSize;
-        val oldPointer = payload.tell();
+        var nodeCount = payload.readInt();
+        var stringSize = payload.readInt();
+        var nodeSize = format >= 19 ? 32 : 24;
+        var dataSize = nodeCount * nodeSize;
+        var bodySize = dataSize + stringSize;
+        var oldPointer = payload.tell();
         payload.seek(dataSize, Whence.POINTER);
         string = new String(BufferUtils.read(payload, stringSize), UTF_8);
         payload.seek(-bodySize, Whence.POINTER);
 
-        val parents = new LinkedList<UnityType>();
+        var parents = new LinkedList<UnityType>();
         parents.add(this);
         UnityType curr;
 
         for (int i = 0; i < nodeCount; i++) {
-            val version = payload.readShort();
-            val depth = payload.readUnsignedByte();
+            var version = payload.readShort();
+            var depth = payload.readUnsignedByte();
 
             if (depth == 0) {
                 curr = this;

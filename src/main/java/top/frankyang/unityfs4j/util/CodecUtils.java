@@ -1,7 +1,7 @@
 package top.frankyang.unityfs4j.util;
 
 import lombok.experimental.UtilityClass;
-import lombok.val;
+
 
 import java.awt.image.BufferedImage;
 
@@ -18,7 +18,22 @@ public class CodecUtils {
         {47, 183, -47, -183},
     };
 
-    public BufferedImage decodeEtc(byte[] data, int width, int height) {
+    private final int[] SIGNED_INT3 = {0, 1, 2, 3, -4, -3, -2, -1};
+
+    public BufferedImage decodeRgb24(byte[] data, int width, int height) {
+        var img = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        var raster = img.getRaster();
+        for (int i = 0; i < data.length; i += 3) {
+            int index = i / 3;
+            int r = data[i] & 0xff,
+                g = data[i + 1] & 0xff,
+                b = data[i + 2] & 0xff;
+            raster.setPixel(index % width, index / width, new int[]{r, g, b});
+        }
+        return img;
+    }
+
+    public BufferedImage decodeEtc1(byte[] data, int width, int height) {
         if (data.length % 8 != 0) {
             throw new IllegalArgumentException("data.length % 8 != 0");
         }
@@ -26,8 +41,8 @@ public class CodecUtils {
             throw new UnsupportedOperationException(width + "x" + height);
         }
         int xBlocks = width / 4;
-        val img = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-        val raster = img.getRaster();
+        var img = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        var raster = img.getRaster();
         for (int i = 0; i < data.length; i += 8) {
             int blockIndex = i / 8;
             int xIndex = blockIndex % xBlocks;
@@ -39,15 +54,18 @@ public class CodecUtils {
             // Average RGB for 2 parts
             int r0, g0, b0, r1, g1, b1;
             if (diff) {
-                r0 = data[i] & 0xf8;
-                r0 += r0 >> 5;
-                r1 = r0 + ((data[i] & 0x07) - 4 << 3);
-                g0 = data[i + 1] & 0xf8;
-                g0 += g0 >> 5;
-                g1 = g0 + ((data[i + 1] & 0x07) - 4 << 3);
-                b0 = data[i + 2] & 0xf8;
-                b0 += b0 >> 5;
-                b1 = b0 + ((data[i + 2] & 0x07) - 4 << 3);
+                r0 = (data[i] & 0xf8) >> 3;
+                r1 = r0 + SIGNED_INT3[data[i] & 0x07];
+                r0 = (r0 << 3) + (r0 >> 2);
+                r1 = (r1 << 3) + (r1 >> 2);
+                g0 = (data[i + 1] & 0xf8) >> 3;
+                g1 = g0 + SIGNED_INT3[data[i + 1] & 0x07];
+                g0 = (g0 << 3) + (g0 >> 2);
+                g1 = (g1 << 3) + (g1 >> 2);
+                b0 = (data[i + 2] & 0xf8) >> 3;
+                b1 = b0 + SIGNED_INT3[data[i + 2] & 0x07];
+                b0 = (b0 << 3) + (b0 >> 2);
+                b1 = (b1 << 3) + (b1 >> 2);
             } else {
                 r0 = data[i] & 0xf0;
                 r0 += r0 >> 4;
@@ -64,10 +82,10 @@ public class CodecUtils {
             }
             int t0 = (data[i + 3] & 0xe0) >> 5;
             int t1 = (data[i + 3] & 0x1c) >> 2;
-            int[] modifier0 = LUMINANCE_TABLE[t0],
-                modifier1 = LUMINANCE_TABLE[t1];
-            int msbData = (data[i + 4] << 8) + data[i + 5];
-            int lsbData = (data[i + 6] << 8) + data[i + 7];
+            int[] modifier0 = LUMINANCE_TABLE[t0];
+            int[] modifier1 = LUMINANCE_TABLE[t1];
+            int msbData = ((data[i + 4] & 0xff) << 8) + (data[i + 5] & 0xff);
+            int lsbData = ((data[i + 6] & 0xff) << 8) + (data[i + 7] & 0xff);
             for (int j = 0; j < 16; j++) {
                 boolean first;
                 if (flip) {  // Horizontal
@@ -91,11 +109,7 @@ public class CodecUtils {
                 }
                 int pxXOffset = j / 4;
                 int pxYOffset = j % 4;
-                raster.setPixel(
-                    xOffset + pxXOffset,
-                    yOffset + pxYOffset,
-                    new int[]{r, g, b, 255}
-                );
+                raster.setPixel(xOffset + pxXOffset, height - (yOffset + pxYOffset) - 1, new int[]{r, g, b});
             }
         }
         return img;

@@ -2,7 +2,7 @@ package top.frankyang.unityfs4j.util;
 
 import lombok.SneakyThrows;
 import lombok.experimental.UtilityClass;
-import lombok.val;
+
 import org.apache.commons.io.IOUtils;
 import top.frankyang.unityfs4j.io.EndianDataInput;
 import top.frankyang.unityfs4j.io.RandomAccess;
@@ -10,17 +10,18 @@ import top.frankyang.unityfs4j.io.RandomAccess;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 @UtilityClass
 public class BufferUtils {
     @SneakyThrows
     public String getString(ByteBuffer buffer) {
-        val stream = new ByteArrayOutputStream();
+        var stream = new ByteArrayOutputStream();
         byte b;
         while ((b = buffer.get()) != 0) {
             stream.write(b);
         }
-        return stream.toString("UTF-8");
+        return stream.toString(StandardCharsets.UTF_8);
     }
 
     public void seekTail(ByteBuffer buffer, int offset) {
@@ -58,7 +59,7 @@ public class BufferUtils {
     }
 
     public boolean[] readBooleans(EndianDataInput buf, int size) {
-        val result = new boolean[size];
+        var result = new boolean[size];
         for (int i = 0; i < result.length; i++) {
             result[i] = buf.readBoolean();
         }
@@ -66,7 +67,7 @@ public class BufferUtils {
     }
 
     public short[] readShorts(EndianDataInput buf, int size) {
-        val result = new short[size];
+        var result = new short[size];
         for (int i = 0; i < result.length; i++) {
             result[i] = buf.readShort();
         }
@@ -74,7 +75,7 @@ public class BufferUtils {
     }
 
     public int[] readUnsignedShorts(EndianDataInput buf, int size) {
-        val result = new int[size];
+        var result = new int[size];
         for (int i = 0; i < result.length; i++) {
             result[i] = buf.readUnsignedShort();
         }
@@ -82,7 +83,7 @@ public class BufferUtils {
     }
 
     public int[] readInts(EndianDataInput buf, int size) {
-        val result = new int[size];
+        var result = new int[size];
         for (int i = 0; i < result.length; i++) {
             result[i] = buf.readInt();
         }
@@ -90,7 +91,7 @@ public class BufferUtils {
     }
 
     public long[] readUnsignedInts(EndianDataInput buf, int size) {
-        val result = new long[size];
+        var result = new long[size];
         for (int i = 0; i < result.length; i++) {
             result[i] = buf.readUnsignedInt();
         }
@@ -98,7 +99,7 @@ public class BufferUtils {
     }
 
     public long[] readLongs(EndianDataInput buf, int size) {
-        val result = new long[size];
+        var result = new long[size];
         for (int i = 0; i < result.length; i++) {
             result[i] = buf.readLong();
         }
@@ -106,7 +107,7 @@ public class BufferUtils {
     }
 
     public float[] readFloats(EndianDataInput buf, int size) {
-        val result = new float[size];
+        var result = new float[size];
         for (int i = 0; i < result.length; i++) {
             result[i] = buf.readFloat();
         }
@@ -114,7 +115,7 @@ public class BufferUtils {
     }
 
     public double[] readDoubles(EndianDataInput buf, int size) {
-        val result = new double[size];
+        var result = new double[size];
         for (int i = 0; i < result.length; i++) {
             result[i] = buf.readDouble();
         }

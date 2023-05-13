@@ -1,24 +1,25 @@
 package top.frankyang.unityfs4j.asset;
 
 import lombok.Getter;
-import lombok.val;
-import lombok.var;
+
+
 import org.apache.commons.io.IOUtils;
 import top.frankyang.unityfs4j.io.RandomAccess;
 import top.frankyang.unityfs4j.util.BufferUtils;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.*;
 
 @Getter
 public class UnityTypes {
+    protected final List<Integer> classIds = new ArrayList<>();
+
+    protected final Map<Integer, BigInteger> hashes = new HashMap<>();
+
+    protected final Map<Integer, UnityType> types = new HashMap<>();
+
     private final Asset asset;
-
-    private final List<Integer> classIds = new ArrayList<>();
-
-    private final Map<Integer, byte[]> hashes = new HashMap<>();
-
-    private final Map<Integer, UnityType> types = new HashMap<>();
 
     protected String engineVersion;
 
@@ -34,7 +35,7 @@ public class UnityTypes {
         return Collections.unmodifiableList(classIds);
     }
 
-    public Map<Integer, byte[]> getHashes() {
+    public Map<Integer, BigInteger> getHashes() {
         return Collections.unmodifiableMap(hashes);
     }
 
@@ -58,15 +59,15 @@ public class UnityTypes {
     }
 
     protected void loadNew(RandomAccess payload, int formatVersion) {
-        val hasTypeTrees = payload.readBoolean();
-        val typeCount = payload.readInt();
+        var hasTypeTrees = payload.readBoolean();
+        var typeCount = payload.readInt();
 
         for (int i = 0; i < typeCount; i++) {
             var classId = payload.readInt();
 
             if (formatVersion >= 17) {
                 payload.readByte();  // DK
-                val scriptId = payload.readShort();
+                var scriptId = payload.readShort();
                 if (classId == 114) {
                     classId = scriptId >= 0 ? -2 - scriptId : -1;
                 }
@@ -78,10 +79,10 @@ public class UnityTypes {
             } else {
                 hash = BufferUtils.read(payload, 16);
             }
-            hashes.put(classId, hash);
+            hashes.put(classId, new BigInteger(hash));
 
             if (hasTypeTrees) {
-                val tree = new UnityType(formatVersion);
+                var tree = new UnityType(formatVersion);
                 tree.load(payload);
                 types.put(classId, tree);
             }
@@ -93,10 +94,10 @@ public class UnityTypes {
     }
 
     protected void loadOld(RandomAccess payload, int formatVersion) {
-        val fieldCount = payload.readInt();
+        var fieldCount = payload.readInt();
         for (int i = 0; i < fieldCount; i++) {
             var classId = payload.readInt();
-            val tree = new UnityType(formatVersion);
+            var tree = new UnityType(formatVersion);
             tree.load(payload);
             types.put(classId, tree);
         }

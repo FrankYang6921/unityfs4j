@@ -1,6 +1,6 @@
 package top.frankyang.unityfs4j.io;
 
-import lombok.val;
+
 import org.apache.commons.io.IOUtils;
 
 import java.io.Closeable;
@@ -30,7 +30,7 @@ public interface RandomAccess extends EndianDataInput, Closeable {
     }
 
     static RandomAccess of(FileChannel channel) throws IOException {
-        val buf = channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size());
+        var buf = channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size());
         return new RandomAccessImpl(buf) {
             @Override
             public void close() {
@@ -40,7 +40,7 @@ public interface RandomAccess extends EndianDataInput, Closeable {
         };
     }
 
-    void align();
+    RandomAccess align();
 
     void seek(long offset);
 

@@ -1,7 +1,6 @@
 package top.frankyang.unityfs4j;
 
 import lombok.Getter;
-import lombok.val;
 import top.frankyang.unityfs4j.UnityFsMetadata.DataBlock;
 import top.frankyang.unityfs4j.UnityFsMetadata.DataNode;
 import top.frankyang.unityfs4j.asset.Asset;
@@ -41,15 +40,15 @@ public class UnityFsPayload extends AbstractRandomAccess implements Iterable<Ass
 
     protected ByteBuffer currentBuffer;
 
-    protected int currentBlockBaseOffset;
+    protected int currentOffset;
 
     protected UnityFsPayload(ByteBuffer buffer, UnityFsMetadata metadata, UnityFsContext context) {
         this.buffer = buffer;
         this.metadata = metadata;
         this.context = context;
-        dataBlocks = metadata.getDataBlocks();
+        dataBlocks = metadata.dataBlocks();
         baseOffset = buffer.position();
-        actualLength = dataBlocks.stream().mapToInt(DataBlock::getUncompressedSize).sum();
+        actualLength = dataBlocks.stream().mapToInt(DataBlock::zippedSize).sum();
         seek(0);
     }
 
@@ -58,19 +57,19 @@ public class UnityFsPayload extends AbstractRandomAccess implements Iterable<Ass
         int realOffset = 0;
         loop:
         {
-            for (val block : dataBlocks) {
-                if (realOffset + block.getUncompressedSize() > offset) {
+            for (var block : dataBlocks) {
+                if (realOffset + block.zippedSize() > offset) {
                     currentBlock = block;
                     break loop;
                 }
-                baseOffset += block.getCompressedSize();
-                realOffset += block.getUncompressedSize();
+                baseOffset += block.actualSize();
+                realOffset += block.zippedSize();
             }
             currentBlock = null;
             currentBuffer = EMPTY_BUFFER;
             return;
         }
-        currentBlockBaseOffset = realOffset;
+        currentOffset = realOffset;
         buffer.position(this.baseOffset + baseOffset);
         byte[] bytes;
         if (blockDataMap.containsKey(currentBlock)) {
@@ -78,29 +77,28 @@ public class UnityFsPayload extends AbstractRandomAccess implements Iterable<Ass
         } else {
             bytes = CompressionUtils.decompress(
                 BufferUtils.asInputStream(buffer),
-                currentBlock.getUncompressedSize(),
-                currentBlock.getCompressionType()
+                currentBlock.zippedSize(),
+                currentBlock.compression()
             );
             blockDataMap.put(currentBlock, bytes);
         }
         currentBuffer = ByteBuffer.wrap(bytes);
     }
 
-    protected boolean isOutOfCurrentBlock(long offset) {
+    protected boolean shouldSeek(long offset) {
         if (currentBlock == null) return true;
-        val currentBlockMax = currentBlockBaseOffset +
-            currentBlock.getUncompressedSize();
-        return currentBlockBaseOffset > offset || offset >= currentBlockMax;
+        var currentBlockMax = currentOffset + currentBlock.zippedSize();
+        return currentOffset > offset || offset >= currentBlockMax;
     }
 
     @Override
     public void seek(long offset) {
         if (pointer == offset) return;
         pointer = (int) offset;
-        if (isOutOfCurrentBlock(offset)) {
+        if (shouldSeek(offset)) {
             seekToBlock(offset);
         }
-        currentBuffer.position((int) offset - currentBlockBaseOffset);
+        currentBuffer.position((int) offset - currentOffset);
     }
 
     @Override
@@ -115,20 +113,19 @@ public class UnityFsPayload extends AbstractRandomAccess implements Iterable<Ass
 
     @Override
     public int read() {
-        if (isOutOfCurrentBlock(pointer)) {
+        if (shouldSeek(pointer)) {
             seekToBlock(pointer);
         }
-        val ret = BufferUtils.read(currentBuffer);
-        if (ret < 0) {
-            return ret;
+        var ret = BufferUtils.read(currentBuffer);
+        if (ret >= 0) {
+            pointer++;
         }
-        pointer++;
         return ret;
     }
 
     @Override
     public int read(byte[] b, int off, int len) {
-        if (isOutOfCurrentBlock(pointer)) {
+        if (shouldSeek(pointer)) {
             seekToBlock(pointer);
         }
         len = BufferUtils.read(currentBuffer, b, off, len);
@@ -142,7 +139,7 @@ public class UnityFsPayload extends AbstractRandomAccess implements Iterable<Ass
     }
 
     protected class AssetIterator implements Iterator<Asset> {
-        final Iterator<DataNode> itr = metadata.getDataNodes().iterator();
+        final Iterator<DataNode> itr = metadata.dataNodes().iterator();
 
         @Override
         public boolean hasNext() {
