@@ -2,7 +2,6 @@ package top.frankyang.unityfs4j.util;
 
 import lombok.SneakyThrows;
 import lombok.experimental.UtilityClass;
-
 import org.apache.commons.io.IOUtils;
 import top.frankyang.unityfs4j.io.EndianDataInput;
 import top.frankyang.unityfs4j.io.RandomAccess;
@@ -104,6 +103,10 @@ public class BufferUtils {
             result[i] = buf.readLong();
         }
         return result;
+    }
+
+    public long[] readUnsignedLongs(EndianDataInput buf, int size) {
+        return readLongs(buf, size); // TODO real unsigned long
     }
 
     public float[] readFloats(EndianDataInput buf, int size) {

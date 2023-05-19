@@ -20,6 +20,9 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.UUID;
 
+import static java.nio.ByteOrder.BIG_ENDIAN;
+import static java.nio.channels.FileChannel.MapMode.READ_ONLY;
+
 @Getter
 public class UnityFsStream implements Iterable<Asset>, Closeable {
     public static final String MAGIC_WORD = "UnityFS";
@@ -41,8 +44,7 @@ public class UnityFsStream implements Iterable<Asset>, Closeable {
     protected UnityFsStream(FileChannel channel, UnityFsContext context) throws IOException {
         this.channel = channel;
         this.context = context;
-        buffer = channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size());
-        buffer.order(ByteOrder.BIG_ENDIAN);
+        buffer = channel.map(READ_ONLY, 0, channel.size()).order(BIG_ENDIAN);
     }
 
     public UnityFsPayload load() {
@@ -63,13 +65,8 @@ public class UnityFsStream implements Iterable<Asset>, Closeable {
         var flag = buffer.getInt();
 
         header = new UnityFsHeader(
-            fileVersion,
-            playerVersion,
-            engineVersion,
-            length,
-            zippedSize,
-            actualSize,
-            flag
+            fileVersion, playerVersion, engineVersion,
+            length, zippedSize, actualSize, flag
         );
 
         int pointer = 0;
@@ -116,7 +113,7 @@ public class UnityFsStream implements Iterable<Asset>, Closeable {
     @Override
     public Iterator<Asset> iterator() {
         if (payload == null) {
-            throw new NotYetReadException("payload must be loaded before iterating assets");
+            throw new NotYetReadException("must be loaded before iterating assets");
         }
         return payload.iterator();
     }

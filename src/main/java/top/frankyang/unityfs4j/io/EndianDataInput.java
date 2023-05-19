@@ -2,13 +2,11 @@ package top.frankyang.unityfs4j.io;
 
 import lombok.SneakyThrows;
 
-
 import java.io.ByteArrayOutputStream;
 import java.io.DataInput;
-import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
-import static java.nio.charset.StandardCharsets.*;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 public interface EndianDataInput extends DataInput {
     void setBigEndian(boolean bigEndian);
@@ -46,6 +44,7 @@ public interface EndianDataInput extends DataInput {
     @Override
     long readLong();
 
+
     @Override
     float readFloat();
 
@@ -60,6 +59,10 @@ public interface EndianDataInput extends DataInput {
 
     default long readUnsignedInt() {
         return Integer.toUnsignedLong(readInt());
+    }
+
+    default long readUnsignedLong() {
+        return readLong(); // TODO real unsigned long
     }
 
     @SneakyThrows

@@ -59,7 +59,8 @@ public class UnityFsContext implements Closeable {
     public Set<UnityFsStream> findStreams(Predicate<Path> predicate) throws IOException {
         return Files.walk(rootPath)
             .filter(Files::isRegularFile)
-            .filter(predicate).map(this::getStream0)
+            .filter(predicate)
+            .map(this::getStream0)
             .collect(Collectors.toUnmodifiableSet());
     }
 

@@ -1,6 +1,5 @@
 package top.frankyang.unityfs4j;
 
-import lombok.val;
 import org.junit.jupiter.api.Test;
 import top.frankyang.unityfs4j.extract.ExtractionManager;
 import top.frankyang.unityfs4j.extract.Extractor;
@@ -11,7 +10,7 @@ import java.nio.file.Path;
 class UnityFsTest {
     @Test
     void test() throws IOException {
-        val context = new UnityFsContext(Path.of("D:/Playground/assets/AB/Android/gamedata/excel/"));
+        var context = new UnityFsContext(Path.of("D:/Playground/assets/AB/Android/charpack"));
         ExtractionManager mgr = ExtractionManager.builder()
             .extractors(Extractor.DEFAULTS)
             .build();

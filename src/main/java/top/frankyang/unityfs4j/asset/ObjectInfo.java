@@ -109,7 +109,7 @@ public class ObjectInfo {
 
         var firstChild =
             unityType.getChildren().size() > 0 ?
-            unityType.getChildren().get(0) :
+                unityType.getChildren().get(0) :
                 UnityType.DUMMY;
         var type = unityType.getType();
         // Read primitive
@@ -121,7 +121,8 @@ public class ObjectInfo {
             case "UInt16", "unsigned short" -> buf.readUnsignedShort();
             case "SInt32", "int" -> buf.readInt();
             case "UInt32", "unsigned int" -> buf.readUnsignedInt();
-            case "SInt64", "UInt64" -> buf.readLong();
+            case "SInt64", "long" -> buf.readLong();
+            case "UInt64", "unsigned long" -> buf.readUnsignedLong();
             case "float" -> buf.align().readFloat();
             case "double" -> buf.align().readDouble();
             case "string" -> {
@@ -175,13 +176,14 @@ public class ObjectInfo {
 
     protected Object readArray(int size, UnityType elemType, RandomAccess buf) {
         return switch (elemType.getType()) {
-            case "bool" ->  BufferUtils.readBooleans(buf, size);
-            case "char", "SInt8", "UInt8" ->  BufferUtils.read(buf, size);
-            case "SInt16", "short" ->  BufferUtils.readShorts(buf, size);
-            case "UInt16", "unsigned short" ->  BufferUtils.readUnsignedShorts(buf, size);
-            case "SInt32", "int" ->  BufferUtils.readInts(buf, size);
-            case "UInt32", "unsigned int" ->  BufferUtils.readUnsignedInts(buf, size);
-            case "SInt64", "UInt64" ->  BufferUtils.readLongs(buf, size);
+            case "bool" -> BufferUtils.readBooleans(buf, size);
+            case "char", "SInt8", "UInt8" -> BufferUtils.read(buf, size);
+            case "SInt16", "short" -> BufferUtils.readShorts(buf, size);
+            case "UInt16", "unsigned short" -> BufferUtils.readUnsignedShorts(buf, size);
+            case "SInt32", "int" -> BufferUtils.readInts(buf, size);
+            case "UInt32", "unsigned int" -> BufferUtils.readUnsignedInts(buf, size);
+            case "SInt64", "long" -> BufferUtils.readLongs(buf, size);
+            case "UInt64", "unsigned long" -> BufferUtils.readUnsignedLongs(buf, size);
             case "float" -> BufferUtils.readFloats(buf.align(), size);
             case "double" -> BufferUtils.readDoubles(buf.align(), size);
             default -> {
