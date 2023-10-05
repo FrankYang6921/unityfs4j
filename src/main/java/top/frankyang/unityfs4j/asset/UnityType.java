@@ -1,8 +1,8 @@
 package top.frankyang.unityfs4j.asset;
 
 import lombok.Getter;
-
 import org.apache.commons.io.IOUtils;
+import top.frankyang.unityfs4j.exception.ObjectFormatException;
 import top.frankyang.unityfs4j.io.RandomAccess;
 import top.frankyang.unityfs4j.io.Whence;
 import top.frankyang.unityfs4j.util.BufferUtils;
@@ -64,7 +64,7 @@ public class UnityType {
             loadBlob(payload);
             return;
         }
-        throw new UnsupportedOperationException();  // TODO
+        throw new UnsupportedOperationException();  // TODO implement it
     }
 
     protected void loadBlob(RandomAccess payload) {
@@ -104,6 +104,9 @@ public class UnityType {
             curr.size = payload.readInt();
             curr.index = payload.readInt();
             curr.flag = payload.readInt();
+            if (type.length() == 0) {
+                throw new ObjectFormatException();
+            }
 
             if (nodeSize > 24) {  // Waste the rest bytes
                 payload.skipBytes(nodeSize - 24);
@@ -128,5 +131,10 @@ public class UnityType {
 
     public boolean isAligned() {
         return (flag & 0x4000) > 0;
+    }
+
+    @Override
+    public String toString() {
+        return "UnityType{" + type + '}';
     }
 }

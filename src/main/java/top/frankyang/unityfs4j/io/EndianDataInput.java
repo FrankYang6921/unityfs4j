@@ -44,7 +44,6 @@ public interface EndianDataInput extends DataInput {
     @Override
     long readLong();
 
-
     @Override
     float readFloat();
 

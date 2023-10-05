@@ -1,9 +1,10 @@
 package top.frankyang.unityfs4j.util;
 
+import lombok.SneakyThrows;
 import lombok.experimental.UtilityClass;
 
-
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 
 @UtilityClass
 public class CodecUtils {
@@ -33,7 +34,12 @@ public class CodecUtils {
         return img;
     }
 
-    public BufferedImage decodeEtc1(byte[] data, int width, int height) {
+    // line 751
+    @SneakyThrows
+    public BufferedImage decodeEtcRgb4(byte[] data, int width, int height) {
+        if (true) {
+            return EtcCodec.uncompress(new ByteArrayInputStream(data), width, height, EtcFormat.ETC1_RGB);
+        }
         if (data.length % 8 != 0) {
             throw new IllegalArgumentException("data.length % 8 != 0");
         }
@@ -113,6 +119,13 @@ public class CodecUtils {
             }
         }
         return img;
+    }
+
+    // line 1034
+    @SneakyThrows
+    public BufferedImage decodeEtc2Rgba8(byte[] data, int width, int height) {
+        // 1481: ETC2_RGBA1
+        return EtcCodec.uncompress(new ByteArrayInputStream(data), width, height, EtcFormat.ETC2_RGBA);
     }
 
     private int clamp255(int i) {

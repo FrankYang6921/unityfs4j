@@ -10,14 +10,14 @@ import top.frankyang.unityfs4j.exception.DataFormatException;
 import top.frankyang.unityfs4j.exception.ObjectRegistryException;
 import top.frankyang.unityfs4j.exception.UnresolvedAssetException;
 import top.frankyang.unityfs4j.io.RandomAccess;
-import top.frankyang.unityfs4j.util.LongIntegerPair;
+import top.frankyang.unityfs4j.util.LongIntPair;
 
 import java.net.URI;
 import java.util.*;
 
 @Getter
 public class Asset implements AssetResolvable, Iterable<ObjectInfo> {
-    protected final ArrayList<LongIntegerPair> adds = new ArrayList<>();
+    protected final ArrayList<LongIntPair> adds = new ArrayList<>();
 
     protected final ArrayList<AssetResolvable> refs = new ArrayList<>();
 
@@ -61,7 +61,7 @@ public class Asset implements AssetResolvable, Iterable<ObjectInfo> {
         refs.add(this);
     }
 
-    public List<LongIntegerPair> getAdds() {
+    public List<LongIntPair> getAdds() {
         ensureLoaded();
         return Collections.unmodifiableList(adds);
     }
@@ -157,7 +157,7 @@ public class Asset implements AssetResolvable, Iterable<ObjectInfo> {
                 if (formatVersion >= 14) {
                     payload.align();
                 }
-                var add = new LongIntegerPair(
+                var add = new LongIntPair(
                     readId(), payload.readInt()
                 );
                 adds.add(add);

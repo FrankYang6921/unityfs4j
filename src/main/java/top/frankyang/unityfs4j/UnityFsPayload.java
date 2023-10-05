@@ -32,15 +32,15 @@ public class UnityFsPayload extends AbstractRandomAccess implements Iterable<Ass
 
     private final int baseOffset;
 
-    private final int actualLength;
+    private final int actualSize;
 
-    protected int pointer;
+    protected int ptr;
 
-    protected DataBlock currentBlock;
+    protected DataBlock curBlock;
 
-    protected ByteBuffer currentBuffer;
+    protected ByteBuffer curBuffer;
 
-    protected int currentOffset;
+    protected int curOffset;
 
     protected UnityFsPayload(ByteBuffer buffer, UnityFsMetadata metadata, UnityFsContext context) {
         this.buffer = buffer;
@@ -48,89 +48,91 @@ public class UnityFsPayload extends AbstractRandomAccess implements Iterable<Ass
         this.context = context;
         dataBlocks = metadata.dataBlocks();
         baseOffset = buffer.position();
-        actualLength = dataBlocks.stream().mapToInt(DataBlock::zippedSize).sum();
+        actualSize = dataBlocks.stream().mapToInt(DataBlock::actualSize).sum();
         seek(0);
     }
 
     protected void seekToBlock(long offset) {
-        int baseOffset = 0;
-        int realOffset = 0;
+        int zippedOffset = 0;
+        int actualOffset = 0;
         loop:
         {
             for (var block : dataBlocks) {
-                if (realOffset + block.zippedSize() > offset) {
-                    currentBlock = block;
+                if (actualOffset + block.actualSize() > offset) {
+                    curBlock = block;
                     break loop;
                 }
-                baseOffset += block.actualSize();
-                realOffset += block.zippedSize();
+                zippedOffset += block.zippedSize();
+                actualOffset += block.actualSize();
             }
-            currentBlock = null;
-            currentBuffer = EMPTY_BUFFER;
+            curBlock = null;
+            curOffset = actualSize;
+            curBuffer = EMPTY_BUFFER;
             return;
         }
-        currentOffset = realOffset;
-        buffer.position(this.baseOffset + baseOffset);
-        byte[] bytes;
-        if (blockDataMap.containsKey(currentBlock)) {
-            bytes = blockDataMap.get(currentBlock);
-        } else {
-            bytes = CompressionUtils.decompress(
+        curOffset = actualOffset;
+        buffer.position(this.baseOffset + zippedOffset);
+        byte[] bytes = blockDataMap.computeIfAbsent(curBlock, cb ->
+            CompressionUtils.decompress(
                 BufferUtils.asInputStream(buffer),
-                currentBlock.zippedSize(),
-                currentBlock.compression()
-            );
-            blockDataMap.put(currentBlock, bytes);
-        }
-        currentBuffer = ByteBuffer.wrap(bytes);
+                cb.actualSize(),
+                cb.compression()
+            )
+        );
+        curBuffer = ByteBuffer.wrap(bytes);
     }
 
     protected boolean shouldSeek(long offset) {
-        if (currentBlock == null) return true;
-        var currentBlockMax = currentOffset + currentBlock.zippedSize();
-        return currentOffset > offset || offset >= currentBlockMax;
+        if (curBlock == null) return true;
+        var currentBlockMax = curOffset + curBlock.actualSize();
+        return curOffset > offset || offset >= currentBlockMax;
     }
 
     @Override
     public void seek(long offset) {
-        if (pointer == offset) return;
-        pointer = (int) offset;
+        if (ptr == offset) return;
+        ptr = (int) offset;
         if (shouldSeek(offset)) {
             seekToBlock(offset);
         }
-        currentBuffer.position((int) offset - currentOffset);
+        curBuffer.position((int) offset - curOffset);
     }
 
     @Override
     public long tell() {
-        return pointer;
+        return ptr;
     }
 
     @Override
     public long size() {
-        return actualLength;
+        return actualSize;
     }
 
     @Override
     public int read() {
-        if (shouldSeek(pointer)) {
-            seekToBlock(pointer);
+        if (shouldSeek(ptr)) {
+            seekToBlock(ptr);
         }
-        var ret = BufferUtils.read(currentBuffer);
+        var ret = BufferUtils.read(curBuffer);
         if (ret >= 0) {
-            pointer++;
+            ptr++;
         }
         return ret;
     }
 
     @Override
     public int read(byte[] b, int off, int len) {
-        if (shouldSeek(pointer)) {
-            seekToBlock(pointer);
+        int allRead = 0;
+        while (len > 0 && ptr < actualSize) {
+            if (shouldSeek(ptr)) {
+                seekToBlock(ptr);
+            }
+            int read = BufferUtils.read(curBuffer, b, off, len);
+            ptr += read;
+            len -= read;
+            allRead += read;
         }
-        len = BufferUtils.read(currentBuffer, b, off, len);
-        pointer += len;
-        return len;
+        return allRead;
     }
 
     @Override

@@ -6,7 +6,7 @@ import top.frankyang.unityfs4j.impl.Texture2D;
 import top.frankyang.unityfs4j.util.CodecUtils;
 
 import javax.imageio.ImageIO;
-import java.awt.image.RenderedImage;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,12 +18,19 @@ public class Texture2DExtractor implements Extractor<Texture2D> {
     }
 
     @Override
-    public void accept(Texture2D texture2D, Path path) throws IOException {
-        var image = switch (texture2D.getTextureFormat()) {
-            case 3 -> CodecUtils.decodeRgb24(texture2D.getData(), texture2D.getWidth(), texture2D.getHeight());
-            case 34 -> CodecUtils.decodeEtc1(texture2D.getData(), texture2D.getWidth(), texture2D.getHeight());
-            default -> throw new UnsupportedOperationException("texture format: " + texture2D.getTextureFormat());
+    public void accept(Texture2D texture2d, Path path) throws IOException {
+        ImageDecoder decoder = switch (texture2d.getTextureFormat()) {
+            case 3 -> CodecUtils::decodeRgb24;
+            case 34 -> CodecUtils::decodeEtcRgb4;
+            case 47 -> CodecUtils::decodeEtc2Rgba8;
+            default -> throw new UnsupportedOperationException("texture format: " + texture2d.getTextureFormat());
         };
-        ImageIO.write(image, "png", Files.newOutputStream(path.resolve(texture2D.getName() + ".png")));
+        var image = decoder.decode(texture2d.getData(), texture2d.getWidth(), texture2d.getHeight());
+        ImageIO.write(image, "png", Files.newOutputStream(path.resolve(texture2d.getName() + ".png")));
+    }
+
+    @FunctionalInterface
+    interface ImageDecoder {
+        BufferedImage decode(byte[] data, int width, int height);
     }
 }

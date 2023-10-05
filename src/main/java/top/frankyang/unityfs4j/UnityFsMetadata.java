@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 public record UnityFsMetadata(UUID uuid, List<DataBlock> dataBlocks, List<DataNode> dataNodes) {
-    public record DataBlock(int zippedSize, int actualSize, int flag) {
+    public record DataBlock(int actualSize, int zippedSize, int flag) {
         public Compression compression() {
             return Compression.values()[flag & 0x3f];
         }

@@ -28,7 +28,7 @@ public class UnityTypes {
     }
 
     public static UnityTypes getInstance() {
-        return TypeMetadataSingleton.INSTANCE;
+        return Holder.INSTANCE;
     }
 
     public List<Integer> getClassIds() {
@@ -103,7 +103,7 @@ public class UnityTypes {
         }
     }
 
-    private static class TypeMetadataSingleton {
+    private static class Holder {
         static final UnityTypes INSTANCE = new UnityTypes(null);
 
         static {

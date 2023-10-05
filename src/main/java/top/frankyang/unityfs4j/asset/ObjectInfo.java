@@ -32,7 +32,7 @@ public class ObjectInfo {
 
     protected boolean destroyed;
 
-    protected UnityType unityType;  // Cached
+    protected UnityType type;  // Cached
 
     protected Object object;  // Cached
 
@@ -68,11 +68,11 @@ public class ObjectInfo {
         }
     }
 
-    public final UnityType getUnityType() {
-        if (unityType == null) {
-            unityType = findUnityType();
+    public final UnityType getType() {
+        if (type == null) {
+            type = findUnityType();
         }
-        return unityType;
+        return type;
     }
 
     protected UnityType findUnityType() {
@@ -98,7 +98,7 @@ public class ObjectInfo {
 
     protected Object readObject() {
         payload.seek(asset.getOffset() + offset);
-        return read(getUnityType(), payload);
+        return read(getType(), payload);
     }
 
     protected Object read(UnityType unityType, RandomAccess buf) {
@@ -108,10 +108,11 @@ public class ObjectInfo {
         var ptrBefore = buf.tell();
 
         var firstChild =
-            unityType.getChildren().size() > 0 ?
-                unityType.getChildren().get(0) :
-                UnityType.DUMMY;
+            unityType.getChildren().size() > 0 ? unityType.getChildren().get(0) : UnityType.DUMMY;
         var type = unityType.getType();
+        if (type.isEmpty()) {  // TODO figure out why empty types exist
+            type = "SInt32";
+        }
         // Read primitive
         result = switch (type) {
             case "bool" -> buf.readBoolean();
@@ -133,11 +134,10 @@ public class ObjectInfo {
             default -> null;
         };
         if (result == null) {  // Non-primitive
-            if (unityType.isArray()) {
+            if (isArray(unityType)) {  // Array type
                 firstChild = unityType;
             }
-            if (firstChild != null &&
-                firstChild.isArray()) {  // Read array
+            if (isArray(firstChild)) {  // Read array
                 align = firstChild.isAligned();
                 result = readArray(buf.readInt(), firstChild.getChildren().get(1), buf);
             } else {  // Read normal object
@@ -198,5 +198,17 @@ public class ObjectInfo {
 
     private long readId() {
         return asset.isLongObjectId() ? payload.readLong() : asset.readId();
+    }
+
+    private boolean isArray(UnityType type) {
+        return type != null && type.isArray();
+    }
+
+    @Override
+    public String toString() {
+        return "ObjectInfo{" +
+            "asset=" + asset +
+            ", unityType=" + type +
+            '}';
     }
 }

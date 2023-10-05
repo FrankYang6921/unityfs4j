@@ -113,7 +113,7 @@ public class UnityFsStream implements Iterable<Asset>, Closeable {
     @Override
     public Iterator<Asset> iterator() {
         if (payload == null) {
-            throw new NotYetReadException("must be loaded before iterating assets");
+            throw new NotYetReadException("must be loaded before iterated over");
         }
         return payload.iterator();
     }
